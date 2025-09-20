@@ -1,0 +1,265 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SheharFix Design System - All colors, gradients, fonts, animations defined here */
+/* All colors MUST be HSL for proper theme switching */
+
+@layer base {
+  :root {
+    /* Light theme colors */
+    --background: 0 0% 98%;
+    --foreground: 240 10% 3.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+
+    --primary: 174 100% 29%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 174 100% 29%;
+
+    /* SheharFix specific colors */
+    --citizen: 166 76% 37%;
+    --citizen-foreground: 0 0% 98%;
+    --admin: 25 95% 53%;
+    --admin-foreground: 0 0% 98%;
+    --success: 142 76% 36%;
+    --warning: 38 92% 50%;
+    --info: 199 89% 48%;
+    
+    /* Status colors */
+    --status-reported: 217 91% 60%;
+    --status-acknowledged: 199 89% 48%;
+    --status-progress: 38 92% 50%;
+    --status-resolved: 142 76% 36%;
+    --status-closed: 240 3.7% 15.9%;
+
+    /* Gradients */
+    --gradient-citizen: linear-gradient(135deg, hsl(166 76% 37%), hsl(158 64% 52%));
+    --gradient-admin: linear-gradient(135deg, hsl(25 95% 53%), hsl(20 91% 48%));
+    --gradient-hero: linear-gradient(135deg, hsl(174 100% 29%) 0%, hsl(158 64% 52%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(240 4.8% 95.9%) 100%);
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark theme colors */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 174 100% 29%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 174 100% 29%;
+
+    /* SheharFix dark theme specific colors */
+    --citizen: 166 76% 37%;
+    --citizen-foreground: 0 0% 98%;
+    --admin: 25 95% 53%;
+    --admin-foreground: 0 0% 98%;
+    --success: 142 76% 36%;
+    --warning: 38 92% 50%;
+    --info: 199 89% 48%;
+
+    /* Gradients for dark theme */
+    --gradient-citizen: linear-gradient(135deg, hsl(166 76% 37%), hsl(158 64% 52%));
+    --gradient-admin: linear-gradient(135deg, hsl(25 95% 53%), hsl(20 91% 48%));
+    --gradient-hero: linear-gradient(135deg, hsl(174 100% 29%) 0%, hsl(158 64% 52%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(240 10% 3.9%) 0%, hsl(240 3.7% 15.9%) 100%);
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  /* Custom component styles */
+  .btn-citizen {
+    @apply bg-citizen text-citizen-foreground hover:bg-citizen/90 active:bg-citizen/80;
+    background: var(--gradient-citizen);
+  }
+
+  .btn-admin {
+    @apply bg-admin text-admin-foreground hover:bg-admin/90 active:bg-admin/80;
+    background: var(--gradient-admin);
+  }
+
+  .card-gradient {
+    background: var(--gradient-card);
+    @apply border border-border/50 backdrop-blur-sm;
+  }
+
+  .hero-gradient {
+    background: var(--gradient-hero);
+  }
+
+  .status-badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .status-reported {
+    @apply bg-status-reported/10 text-status-reported border border-status-reported/20;
+  }
+
+  .status-acknowledged {
+    @apply bg-info/10 text-info border border-info/20;
+  }
+
+  .status-progress {
+    @apply bg-warning/10 text-warning border border-warning/20;
+  }
+
+  .status-resolved {
+    @apply bg-success/10 text-success border border-success/20;
+  }
+
+  .status-closed {
+    @apply bg-status-closed/10 text-status-closed border border-status-closed/20;
+  }
+
+  /* Loading animation */
+  .loading-dots {
+    @apply flex space-x-1;
+  }
+
+  .loading-dots div {
+    @apply w-2 h-2 bg-primary rounded-full animate-pulse;
+    animation-delay: calc(var(--i) * 0.2s);
+  }
+
+  /* Gamification styles */
+  .badge-glow {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+    @apply animate-pulse;
+  }
+
+  .leaderboard-rank {
+    @apply flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold;
+  }
+
+  .rank-1 {
+    @apply bg-yellow-500 text-yellow-900;
+  }
+
+  .rank-2 {
+    @apply bg-gray-400 text-gray-900;
+  }
+
+  .rank-3 {
+    @apply bg-amber-600 text-amber-100;
+  }
+}
+
+@layer utilities {
+  /* Custom animations */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.5s ease-out;
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.3s ease-out;
+  }
+
+  .text-gradient {
+    background: var(--gradient-hero);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
