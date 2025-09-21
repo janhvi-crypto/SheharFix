@@ -1,15 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapPin, Clock, CheckCircle, AlertTriangle, Users, Eye } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Layout from '@/components/Layout';
+import LoadingScreen from '@/components/LoadingScreen';
 import samplePothole from '@/assets/sample-pothole.jpg';
 import sampleGarbage from '@/assets/sample-garbage.jpg';
 import sampleDrainage from '@/assets/sample-drainage.jpg';
 import sampleStreetlight from '@/assets/sample-streetlight.jpg';
 
 const PublicView = () => {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    setTimeout(() => setIsLoading(false), 2000);
+  }, []);
+
   const resolvedIssues = [
     {
       id: 1,
@@ -100,6 +107,10 @@ const PublicView = () => {
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <Layout searchPlaceholder="Search resolved issues, wards, or categories...">
