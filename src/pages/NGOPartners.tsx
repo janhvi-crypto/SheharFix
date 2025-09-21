@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Heart, Search, MapPin, Users, Mail, Phone, ExternalLink, Filter } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,10 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Layout from '@/components/Layout';
+import LoadingScreen from '@/components/LoadingScreen';
 
 const NGOPartners = () => {
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+
+  useEffect(() => {
+    setTimeout(() => setIsLoading(false), 2000);
+  }, []);
 
   const ngoPartners = [
     {
@@ -149,6 +155,10 @@ const NGOPartners = () => {
     };
     return colors[category] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <Layout searchPlaceholder="Search NGO partners by name, category, or focus area...">
