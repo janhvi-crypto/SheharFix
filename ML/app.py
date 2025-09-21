@@ -1,7 +1,7 @@
 # ML/app.py
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import HTTPException
+from fastapi.responses import Response  # Import Response
 from tensorflow.keras.models import load_model
 from tensorflow.keras.utils import img_to_array
 from PIL import Image
@@ -14,21 +14,20 @@ import json
 
 app = FastAPI()
 
-# Allow local frontend during development
+# Your existing CORS configuration is perfect
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://localhost:8080"," http://192.168.1.174:8080"],
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://localhost:8080", "http://192.168.1.174:8080"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Resolve model path
+# Your robust model loading logic
 BASE_DIR = Path(__file__).resolve().parent
-MODEL_FILENAME = "garbage_pothole_streetlight.keras"  # adjust if different
+MODEL_FILENAME = "garbage_pothole_streetlight.keras"
 MODEL_PATH = BASE_DIR / MODEL_FILENAME
 
-# Load model safely
 def safe_load_model(path: Path):
     if not path.exists():
         raise FileNotFoundError(f"Model file not found at: {path}")
@@ -38,6 +37,7 @@ def safe_load_model(path: Path):
         print("Loaded model successfully.")
         return model
     except Exception as e1:
+        # ... (the rest of your safe_load_model function is perfect and remains unchanged)
         try:
             print("Trying load_model(..., compile=False)...")
             model = load_model(str(path), compile=False)
@@ -63,42 +63,45 @@ except Exception as exc:
     print("ERROR loading model:", exc)
     sys.exit(1)
 
-# Only 3 categories
 CLASS_NAMES = ["garbage", "pothole", "streetlight"]
 
-# Preprocess image bytes for prediction
 def preprocess_image_bytes(image_bytes: bytes):
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    img = img.resize((222,222))  # model input size
+    img = img.resize((222, 222))
     arr = img_to_array(img)
     arr = arr.astype("float32") / 255.0
-    arr = np.expand_dims(arr, axis=0)  # batch dimension
+    arr = np.expand_dims(arr, axis=0)
     return arr
 
-# POST endpoint for image prediction
+# --- NEW ENDPOINTS TO FIX ERRORS ---
+
+@app.get("/")
+def read_root():
+    """Provides a simple health check endpoint."""
+    return {"message": "SheharFix ML Server is running."}
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Handles browser favicon requests to prevent 404 errors."""
+    return Response(status_code=204)
+
+# --- YOUR EXISTING PREDICTION ENDPOINT ---
+
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     try:
-        # Read and preprocess
         image_bytes = await file.read()
         x = preprocess_image_bytes(image_bytes)
-
-        # Predict
         preds = model.predict(x)
-        print("Prediction raw:", preds)
-        print("Prediction shape:", preds.shape)
-
-        # Slice to first 3 values for your 3 categories
         preds = preds[:, :3]
 
         if len(preds) == 0 or len(preds[0]) == 0:
-            return {"error": "Model returned empty predictions. Check input image and preprocessing."}
+            return {"error": "Model returned empty predictions."}
 
         class_index = int(np.argmax(preds[0]))
         confidence = float(np.max(preds[0]))
         result = {"prediction": CLASS_NAMES[class_index], "confidence": confidence}
 
-        # Save JSON
         with open("prediction.json", "w") as f:
             json.dump(result, f, indent=4)
 
@@ -108,6 +111,5 @@ async def predict(file: UploadFile = File(...)):
         print("Prediction error:", repr(e))
         return {"error": str(e)}
 
-# Run with python app.py
 if __name__ == "__main__":
     uvicorn.run("app:app", host="127.0.0.1", port=8000, log_level="info")
