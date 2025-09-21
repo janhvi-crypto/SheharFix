@@ -184,8 +184,8 @@ const ReportIssue = () => {
         form.append('lat', locMatch[1]);
         form.append('lng', locMatch[2]);
       }
-      if (selectedImages[0]) {
-        form.append('media', selectedImages[0]);
+      if (selectedImage) {
+        form.append('media', selectedImage);
       }
 
       const resp = await fetch('/api/issues', {
