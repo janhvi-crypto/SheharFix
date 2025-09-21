@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Env files
+.env
+.env.*
+
+# Logs & coverage
+logs/
+*.log
+coverage/
+
+# Upload artifacts (if any temporary local use)
+uploads/
