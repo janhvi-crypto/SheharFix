@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, CheckCircle, Clock, Users, MapPin, Navigation, Camera, Settings } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Users, MapPin, Navigation, Camera, Settings, IndianRupee, BarChart3, TrendingUp, Shield } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -13,6 +13,31 @@ import sampleStreetlight from '@/assets/sample-streetlight.jpg';
 
 const AdminDashboard = () => {
   const { user } = useApp();
+
+  // Transparency data for administrators
+  const transparencyData = {
+    budget: {
+      total: 245.8,
+      allocated: 198.3,
+      spent: 167.4,
+      remaining: 30.9,
+      efficiency: 84.4
+    },
+    departments: [
+      { name: 'Road Infrastructure', budget: 67.2, spent: 58.9, projects: 45, completion: 87.6 },
+      { name: 'Waste Management', budget: 45.8, spent: 41.2, projects: 32, completion: 89.9 },
+      { name: 'Water & Drainage', budget: 38.4, spent: 32.1, projects: 28, completion: 83.6 },
+      { name: 'Street Lighting', budget: 28.7, spent: 24.8, projects: 19, completion: 86.4 },
+      { name: 'Parks & Recreation', budget: 18.2, spent: 10.4, projects: 12, completion: 57.1 }
+    ],
+    performance: {
+      issuesResolved: 1247,
+      avgResponseTime: 2.8,
+      citizenSatisfaction: 87.2,
+      budgetUtilization: 84.4,
+      staffEfficiency: 91.3
+    }
+  };
 
   const stats = [
     { 
@@ -157,51 +182,98 @@ const AdminDashboard = () => {
           </p>
         </div>
 
-        {/* Stats Grid */}
+        {/* Main Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stats.map((stat, index) => {
-            const IconComponent = stat.icon;
-            return (
-              <Card key={index} className="card-gradient">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-2">
-                      <IconComponent className={`w-5 h-5 ${stat.color}`} />
-                      <p className="text-sm font-medium text-muted-foreground">
-                        {stat.title}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-baseline space-x-2">
-                      <p className="text-3xl font-bold">
-                        {stat.value}
-                      </p>
-                      {stat.suffix && (
-                        <span className="text-lg text-muted-foreground">
-                          {stat.suffix}
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Badge 
-                        variant="secondary" 
-                        className={`text-xs ${stat.color} bg-transparent`}
-                      >
-                        {stat.change}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {stat.period}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          <Card className="card-gradient">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <AlertTriangle className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">47</p>
+                  <p className="text-sm text-muted-foreground">Assigned Issues</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="card-gradient">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <IndianRupee className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">₹{transparencyData.budget.spent}L</p>
+                  <p className="text-sm text-muted-foreground">Budget Utilized</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="card-gradient">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <BarChart3 className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{transparencyData.performance.citizenSatisfaction}%</p>
+                  <p className="text-sm text-muted-foreground">Citizen Satisfaction</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="card-gradient">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <TrendingUp className="w-6 h-6 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{transparencyData.performance.staffEfficiency}%</p>
+                  <p className="text-sm text-muted-foreground">Staff Efficiency</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* Department Budget Overview for Admins */}
+        <Card className="card-gradient">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Shield className="w-5 h-5" />
+              <span>Budget Management Overview</span>
+            </CardTitle>
+            <CardDescription>Department-wise budget allocation and utilization tracking</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {transparencyData.departments.map((dept, index) => (
+                <div key={index} className="p-4 border rounded-lg bg-card/50">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-sm">{dept.name}</h4>
+                      <Badge variant="secondary" className="text-xs">
+                        {dept.completion.toFixed(1)}%
+                      </Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span>₹{dept.spent}L / ₹{dept.budget}L</span>
+                        <span>{dept.projects} projects</span>
+                      </div>
+                      <Progress value={dept.completion} className="h-2" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Assigned Issues */}
         <div className="space-y-4">
