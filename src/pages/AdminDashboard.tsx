@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle, Clock, Users, MapPin, Navigation, Camera, Settings, IndianRupee, BarChart3, TrendingUp, Shield } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -75,68 +75,109 @@ const AdminDashboard = () => {
     },
   ];
 
-  const assignedIssues = [
-    {
-      id: 1,
-      title: 'Large pothole on MG Road',
-      description: 'Deep pothole causing traffic congestion near bus stop',
-      location: 'MG Road, Koramangala',
-      priority: 'high',
-      category: 'Roads',
-      reportedBy: 'Arjun Mehta',
-      reportedDate: '2024-01-20',
-      assignedTo: 'Road Maintenance Team',
-      image: samplePothole,
-      status: 'in-progress',
-      upvotes: 15,
-      estimatedTime: '2 days'
-    },
-    {
-      id: 2,
-      title: 'Overflowing garbage bin',
-      description: 'Garbage bin overflowing for 3 days, creating hygiene issues',
-      location: 'Jayanagar 4th Block',
-      priority: 'medium',
-      category: 'Sanitation',
-      reportedBy: 'Priya Sharma',
-      reportedDate: '2024-01-19',
-      assignedTo: 'Sanitation Department',
-      image: sampleGarbage,
-      status: 'assigned',
-      upvotes: 8,
-      estimatedTime: '1 day'
-    },
-    {
-      id: 3,
-      title: 'Blocked drainage causing flooding',
-      description: 'Drainage system completely blocked after recent rains',
-      location: 'BTM Layout 2nd Stage',
-      priority: 'high',
-      category: 'Drainage',
-      reportedBy: 'Rajeev Kumar',
-      reportedDate: '2024-01-18',
-      assignedTo: 'Water Works Department',
-      image: sampleDrainage,
-      status: 'in-progress',
-      upvotes: 22,
-      estimatedTime: '3 days'
-    },
-    {
-      id: 4,
-      title: 'Street light not working',
-      description: 'Multiple street lights not functioning, safety concern',
-      location: 'Indiranagar 12th Main',
-      priority: 'medium',
-      category: 'Street Lighting',
-      reportedBy: 'Meera Iyer',
-      reportedDate: '2024-01-17',
-      assignedTo: 'Electrical Department',
-      image: sampleStreetlight,
-      status: 'assigned',
-      upvotes: 6,
-      estimatedTime: '1 day'
+  type AdminIssue = {
+    id: number;
+    title: string;
+    description?: string;
+    category?: string;
+    priority?: string;
+    status: 'assigned' | 'in-progress' | 'resolved' | string;
+    location?: string;
+    reportedBy?: string;
+    reportedDate?: string;
+    assignedTo?: string;
+    image: string;
+    upvotes?: number;
+    estimatedTime?: string;
+  };
+
+  const [assignedIssues, setAssignedIssues] = useState<AdminIssue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const refetchIssues = async () => {
+    try {
+      const res = await fetch('/api/issues');
+      if (!res.ok) throw new Error('Failed to fetch');
+      const rows: any[] = await res.json();
+      // Map to AdminIssue; filter out resolved so the list only shows actionable items
+      const mapped: AdminIssue[] = rows
+        .filter(r => r.status !== 'resolved')
+        .map(r => ({
+          id: r.id,
+          title: r.title,
+          description: r.description || '',
+          category: r.category || 'General',
+          priority: r.priority || 'medium',
+          status: r.status === 'in_progress' ? 'in-progress' : (r.status || 'assigned'),
+          location: (r.lat && r.lng) ? `${Number(r.lat).toFixed(4)}, ${Number(r.lng).toFixed(4)}` : undefined,
+          reportedBy: r.created_by ? `Citizen #${r.created_by}` : 'Citizen',
+          reportedDate: r.created_at,
+          assignedTo: undefined,
+          image: r.media_path ||
+            (String(r.category || '').toLowerCase().includes('pothole') || String(r.category || '').toLowerCase().includes('road') ? samplePothole
+            : String(r.category || '').toLowerCase().includes('garbage') || String(r.category || '').toLowerCase().includes('sanitation') ? sampleGarbage
+            : String(r.category || '').toLowerCase().includes('drain') ? sampleDrainage
+            : sampleStreetlight),
+          upvotes: r.upvotes || 0,
+          estimatedTime: '2 days'
+        }));
+      setAssignedIssues(mapped);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  useEffect(() => {
+    refetchIssues();
+  }, []);
+  const fileInputsRef = useRef<Record<number, HTMLInputElement | null>>({});
+
+  const triggerUpload = (id: number) => {
+    const input = fileInputsRef.current[id];
+    input?.click();
+  };
+
+  const onFileSelected = async (id: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Optimistic preview
+    const previewUrl = URL.createObjectURL(file);
+    setAssignedIssues(prev => prev.map(it => it.id === id ? { ...it, image: previewUrl } : it));
+    // Attempt to persist to backend if this ID exists server-side
+    try {
+      const form = new FormData();
+      form.append('media', file);
+      const resp = await fetch(`/api/issues/${id}/media`, { method: 'PATCH', body: form });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data?.media_path) {
+          setAssignedIssues(prev => prev.map(it => it.id === id ? { ...it, image: data.media_path } : it));
+        }
+      }
+    } catch {}
+    // Reset so selecting the same file again triggers change
+    e.currentTarget.value = '';
+  };
+
+  const markResolved = async (id: number) => {
+    // Optimistic UI update
+    setAssignedIssues(prev => prev.filter(it => it.id !== id));
+    // Try to sync with backend if the issue exists
+    try {
+      await fetch(`/api/issues/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'resolved' }),
+      });
+      // Optionally ensure by refetching
+      // await refetchIssues();
+      // Increment admin resolved counter for Profile page (used as fallback display)
+      const key = 'admin-resolved-count';
+      const current = Number(localStorage.getItem(key) || '0');
+      localStorage.setItem(key, String(current + 1));
+    } catch {}
+  };
+
+  
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -286,6 +327,12 @@ const AdminDashboard = () => {
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {loading && (
+              <div className="text-sm text-muted-foreground">Loading assigned issues…</div>
+            )}
+            {!loading && assignedIssues.length === 0 && (
+              <div className="text-sm text-muted-foreground">No assigned issues. Great job!</div>
+            )}
             {assignedIssues.map((issue) => (
               <Card key={issue.id} className="card-gradient">
                 <CardContent className="p-4">
@@ -333,12 +380,26 @@ const AdminDashboard = () => {
                       <Navigation className="w-3 h-3 mr-1" />
                       Navigate
                     </Button>
-                    <Button variant="outline" size="sm" className="flex-1">
+                    {/* Hidden input for file selection */}
+                    <input
+                      ref={el => { fileInputsRef.current[issue.id] = el; }}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => onFileSelected(issue.id, e)}
+                    />
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => triggerUpload(issue.id)}>
                       <Camera className="w-3 h-3 mr-1" />
                       Upload Photo
                     </Button>
-                    <Button variant="outline" size="sm">
-                      Mark Resolved
+                    <Button
+                      variant={issue.status === 'resolved' ? 'default' : 'outline'}
+                      size="sm"
+                      className={issue.status === 'resolved' ? 'bg-green-600 hover:bg-green-600 text-white' : ''}
+                      onClick={() => markResolved(issue.id)}
+                    >
+                      {issue.status === 'resolved' ? 'Resolved' : 'Mark Resolved'}
                     </Button>
                   </div>
                 </CardContent>

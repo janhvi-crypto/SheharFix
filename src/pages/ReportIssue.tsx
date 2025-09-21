@@ -173,9 +173,32 @@ const ReportIssue = () => {
 
     setIsSubmitting(true);
     try {
-      console.log('Submitting form data:', { ...formData, image: selectedImage?.name });
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      toast.success('Issue reported successfully! You will receive updates via notifications.');
+      const form = new FormData();
+      form.append('title', formData.title);
+      form.append('description', formData.description);
+      form.append('category', formData.category);
+      form.append('priority', formData.priority || 'medium');
+      // Extract lat/lng if user used current location format "lat, lng - ..."
+      const locMatch = formData.location.match(/([-+]?\d*\.?\d+),\s*([-+]?\d*\.?\d+)/);
+      if (locMatch) {
+        form.append('lat', locMatch[1]);
+        form.append('lng', locMatch[2]);
+      }
+      if (selectedImages[0]) {
+        form.append('media', selectedImages[0]);
+      }
+
+      const resp = await fetch('/api/issues', {
+        method: 'POST',
+        body: form,
+        // Authorization header optional; if you wire login to backend later, include token here
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to submit');
+      }
+
+      toast.success('Issue reported successfully!');
       navigate('/dashboard');
     } catch (error) {
       console.error(error);

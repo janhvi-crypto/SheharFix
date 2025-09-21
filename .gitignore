@@ -22,3 +22,21 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment files
+.env
+.env.*
+
+# Backend (separate Express+Mongo service)
+backend/node_modules
+backend/.env
+backend/.env.*
+backend/logs
+backend/coverage
+backend/uploads
+
+# Legacy server (SQLite) artifacts
+server/data/
+server/uploads/
+server/*.db
+*.db

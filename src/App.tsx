@@ -16,6 +16,9 @@ import Leaderboard from "./pages/Leaderboard";
 import PublicView from "./pages/PublicView";
 import Transparency from "./pages/Transparency";
 import NGOPartners from "./pages/NGOPartners";
+import ComingSoon from "./pages/ComingSoon";
+import Profile from "./pages/Profile";
+import PartnerApply from "./pages/PartnerApply";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +41,12 @@ const App = () => (
               <Route path="/public-view" element={<PublicView />} />
               <Route path="/transparency" element={<Transparency />} />
               <Route path="/ngo" element={<NGOPartners />} />
+              <Route path="/partner/apply" element={<PartnerApply />} />
+              <Route path="/profile" element={<Profile />} />
+              {/* Coming soon placeholders */}
+              <Route path="/manage-issues" element={<ComingSoon title="Manage Issues" description="Assign, track and resolve issues. This admin feature is coming soon." />} />
+              <Route path="/admin-analytics" element={<ComingSoon title="Admin Analytics" description="Deeper insights for administrators are coming soon." />} />
+              <Route path="/heatmap" element={<ComingSoon title="City Heatmap" description="Geospatial clustering and hotspot visualization are coming soon." />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
