@@ -1,14 +1,20 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trophy, Medal, Star, Crown, Shield, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Layout from '@/components/Layout';
+import LoadingScreen from '@/components/LoadingScreen';
 import { useApp } from '@/contexts/AppContext';
 
 const Leaderboard = () => {
   const { user } = useApp();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    setTimeout(() => setIsLoading(false), 2000);
+  }, []);
 
   const topCitizens = [
     {
@@ -104,6 +110,10 @@ const Leaderboard = () => {
   };
 
   const currentUser = topCitizens.find(citizen => citizen.id === user?.id);
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <Layout searchPlaceholder="Search leaderboard...">
