@@ -1,12 +1,19 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { TrendingUp, IndianRupee, FileText, Award, Shield, BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import Layout from '@/components/Layout';
+import LoadingScreen from '@/components/LoadingScreen';
 
 const Transparency = () => {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    setTimeout(() => setIsLoading(false), 2000);
+  }, []);
+
   const budgetData = [
     { 
       department: 'Road Infrastructure', 
@@ -92,6 +99,10 @@ const Transparency = () => {
   const totalSpent = budgetData.reduce((sum, dept) => sum + dept.spent, 0);
   const totalRemaining = budgetData.reduce((sum, dept) => sum + dept.remaining, 0);
   const overallEfficiency = (totalSpent / totalBudget) * 100;
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <Layout searchPlaceholder="Search budget, departments, or transparency reports...">
