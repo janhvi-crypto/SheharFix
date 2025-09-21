@@ -21,6 +21,8 @@ interface AppContextType {
   login: (email: string, password: string, role: UserRole) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
+  isNavigating: boolean;
+  setIsNavigating: (loading: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -122,6 +124,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUser] = useState<User | null>(null);
   const [language, setLanguage] = useState<Language>('en');
   const [isLoading, setIsLoading] = useState(true);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   useEffect(() => {
     // Load saved language and user from localStorage
@@ -173,7 +176,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLanguage: handleSetLanguage,
       login,
       logout,
-      isLoading
+      isLoading,
+      isNavigating,
+      setIsNavigating
     }}>
       {children}
     </AppContext.Provider>
