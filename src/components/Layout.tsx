@@ -1,12 +1,13 @@
 import React from 'react';
-import { Search, Bell, User, Menu } from 'lucide-react';
+import { Search, Bell, User, Menu, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useTheme } from 'next-themes';
 import Sidebar from './Sidebar';
-import { useApp } from '@/contexts/AppContext';
+import { useApp, useTranslation } from '@/contexts/AppContext';
 import logo from '@/assets/sheharfix-logo.png';
 
 interface LayoutProps {
@@ -16,6 +17,8 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, searchPlaceholder = "Search issues by title, location, or description..." }) => {
   const { user } = useApp();
+  const { theme, setTheme } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -62,6 +65,19 @@ const Layout: React.FC<LayoutProps> = ({ children, searchPlaceholder = "Search i
 
           {/* Right Side Actions */}
           <div className="flex items-center space-x-4">
+            {/* Theme Toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-5 h-5" />
+              ) : (
+                <Moon className="w-5 h-5" />
+              )}
+            </Button>
+
             {/* Notifications */}
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="w-5 h-5" />
