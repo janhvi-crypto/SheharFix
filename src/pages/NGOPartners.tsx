@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Heart, Search, MapPin, Users, Mail, Phone, ExternalLink, Filter } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +13,7 @@ const NGOPartners = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const navigate = useNavigate();
 
   useEffect(() => {
     setTimeout(() => setIsLoading(false), 2000);
@@ -355,7 +357,7 @@ const NGOPartners = () => {
                   We're always looking for passionate organizations to collaborate with. Together, we can make our cities better.
                 </p>
               </div>
-              <Button className="whitespace-nowrap">
+              <Button className="whitespace-nowrap" onClick={() => navigate('/partner/apply')}>
                 <Heart className="w-4 h-4 mr-2" />
                 Become a Partner
               </Button>

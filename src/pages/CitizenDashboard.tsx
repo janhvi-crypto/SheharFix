@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus, TrendingUp, AlertCircle, CheckCircle, Clock, Users, BarChart3, Trophy } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import potholeImg from '@/assets/sample-pothole.jpg';
 import garbageImg from '@/assets/sample-garbage.jpg';
 import drainageImg from '@/assets/sample-drainage.jpg';
 import streetlightImg from '@/assets/sample-streetlight.jpg';
+import { format } from 'date-fns';
 
 const CitizenDashboard = () => {
   const navigate = useNavigate();
@@ -23,52 +24,71 @@ const CitizenDashboard = () => {
     { title: 'Community Impact', value: '1,247', change: '+89', icon: Users, color: 'text-purple-600' },
   ];
 
-  const recentIssues = [
-    {
-      id: 1,
-      title: 'Pothole on MG Road',
-      description: 'Large pothole causing traffic issues near the intersection with Church Street.',
-      category: 'Roads',
-      status: 'resolved',
-      reportedBy: 'Rajesh Kumar',
-      date: '2024-01-15',
-      image: potholeImg,
-      location: 'MG Road, Bangalore'
-    },
-    {
-      id: 2,
-      title: 'Garbage accumulation near Park',
-      description: 'Overflowing garbage bins and scattered waste near Cubbon Park entrance.',
-      category: 'Sanitation',
-      status: 'progress',
-      reportedBy: 'Priya Sharma',
-      date: '2024-01-14',
-      image: garbageImg,
-      location: 'Cubbon Park, Bangalore'
-    },
-    {
-      id: 3,
-      title: 'Blocked drainage system',
-      description: 'Water logging during rains due to blocked drainage on residential street.',
-      category: 'Drainage',
-      status: 'acknowledged',
-      reportedBy: 'Amit Patel',
-      date: '2024-01-13',
-      image: drainageImg,
-      location: 'Koramangala, Bangalore'
-    },
-    {
-      id: 4,
-      title: 'Street light not working',
-      description: 'Multiple street lights are not functioning, making the area unsafe during nighttime.',
-      category: 'Lighting',
-      status: 'reported',
-      reportedBy: 'Sunita Devi',
-      date: '2024-01-12',
-      image: streetlightImg,
-      location: 'Jayanagar, Bangalore'
+  type UiIssue = {
+    id: number;
+    title: string;
+    description?: string;
+    category?: string;
+    status: string;
+    reportedBy: string;
+    date: string;
+    image: string;
+    location?: string;
+  };
+
+  const [recentIssues, setRecentIssues] = useState<UiIssue[]>([]);
+  const [loadingIssues, setLoadingIssues] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchIssues() {
+      try {
+        const res = await fetch('/api/issues');
+        if (!res.ok) throw new Error('Failed to load issues');
+        const rows: any[] = await res.json();
+        if (cancelled) return;
+        const mapped: UiIssue[] = rows.map((row) => ({
+          id: row.id,
+          title: row.title,
+          description: row.description || '',
+          category: capitalize(row.category || 'General'),
+          status: mapStatus(row.status || 'submitted'),
+          reportedBy: row.created_by ? 'Citizen #' + row.created_by : 'Citizen',
+          date: row.created_at ? format(new Date(row.created_at), 'yyyy-MM-dd') : '',
+          image: resolveImage(row),
+          location: row.lat && row.lng ? `${row.lat.toFixed(4)}, ${row.lng.toFixed(4)}` : undefined,
+        }));
+        setRecentIssues(mapped);
+      } catch (e) {
+        // On error, keep empty list silently for now
+        setRecentIssues([]);
+      } finally {
+        if (!cancelled) setLoadingIssues(false);
+      }
     }
-  ];
+    fetchIssues();
+    return () => { cancelled = true; };
+  }, []);
+
+  function resolveImage(row: any): string {
+    if (row.media_path) return row.media_path; // served from backend /uploads
+    const cat = String(row.category || '').toLowerCase();
+    if (cat.includes('pothole') || cat.includes('road')) return potholeImg;
+    if (cat.includes('garbage') || cat.includes('sanitation')) return garbageImg;
+    if (cat.includes('drain')) return drainageImg;
+    if (cat.includes('light')) return streetlightImg;
+    return potholeImg;
+  }
+
+  function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function mapStatus(s: string) {
+    switch (s) {
+      case 'resolved': return 'resolved';
+      case 'in_progress': return 'progress';
+      case 'acknowledged': return 'acknowledged';
+      default: return 'reported';
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -241,6 +261,12 @@ const CitizenDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              {loadingIssues && (
+                <div className="text-sm text-muted-foreground">Loading latest issues…</div>
+              )}
+              {!loadingIssues && recentIssues.length === 0 && (
+                <div className="text-sm text-muted-foreground">No issues reported yet. Be the first to report!</div>
+              )}
               {recentIssues.map((issue) => (
                 <div
                   key={issue.id}
@@ -271,7 +297,7 @@ const CitizenDashboard = () => {
                     </div>
                     <div className="flex items-center justify-between mt-2">
                       <p className="text-xs text-muted-foreground">
-                        By {issue.reportedBy} • {issue.location}
+                        By {issue.reportedBy}{issue.location ? ` • ${issue.location}` : ''}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {issue.date}
