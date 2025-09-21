@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   AlertTriangle, 
@@ -17,11 +17,29 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useApp, useTranslation } from '@/contexts/AppContext';
+import PageLoader from './PageLoader';
 import logo from '@/assets/sheharfix-logo.png';
 
 const Sidebar = () => {
-  const { user, logout } = useApp();
+  const { user, logout, isNavigating, setIsNavigating } = useApp();
   const { t } = useTranslation();
+  const navigate = useNavigate();
+
+  const handleNavigation = async (path: string) => {
+    setIsNavigating(true);
+    // Simulate loading time for better UX
+    await new Promise(resolve => setTimeout(resolve, 800));
+    navigate(path);
+    setIsNavigating(false);
+  };
+
+  const handleLogout = async () => {
+    setIsNavigating(true);
+    logout();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    navigate('/');
+    setIsNavigating(false);
+  };
 
   const citizenNavItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: t('dashboard') },
@@ -52,6 +70,10 @@ const Sidebar = () => {
         ? 'bg-primary text-primary-foreground'
         : 'text-muted-foreground hover:text-foreground hover:bg-accent'
     }`;
+
+  if (isNavigating) {
+    return <PageLoader message="Navigating..." />;
+  }
 
   return (
     <div className="w-64 h-screen bg-card border-r flex flex-col">
@@ -148,7 +170,7 @@ const Sidebar = () => {
         
         <Button
           variant="ghost"
-          onClick={logout}
+          onClick={handleLogout}
           className="flex items-center space-x-3 px-3 py-2 text-sm w-full text-left justify-start text-muted-foreground hover:text-foreground hover:bg-accent"
         >
           <LogOut className="w-4 h-4" />
