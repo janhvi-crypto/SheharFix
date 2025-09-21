@@ -1,10 +1,17 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { TrendingUp, AlertTriangle, CheckCircle, Clock, BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import Layout from '@/components/Layout';
+import LoadingScreen from '@/components/LoadingScreen';
 
 const Analytics = () => {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    setTimeout(() => setIsLoading(false), 2000);
+  }, []);
+
   const issuesByCategory = [
     { category: 'Potholes', count: 14, percentage: 14.3, color: 'bg-purple-500' },
     { category: 'Garbage', count: 10, percentage: 9.5, color: 'bg-red-500' },
@@ -32,6 +39,10 @@ const Analytics = () => {
     { month: 'May', reported: 20, resolved: 22 },
     { month: 'Jun', reported: 28, resolved: 25 },
   ];
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <Layout searchPlaceholder="Search analytics data...">
