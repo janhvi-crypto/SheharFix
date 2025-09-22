@@ -1,12 +1,13 @@
 import React from 'react';
-import { Search, Bell, User, Menu, Sun, Moon } from 'lucide-react';
+import { Search, User, Menu, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useTheme } from 'next-themes';
 import Sidebar from './Sidebar';
+import NotificationDropdown from './NotificationDropdown';
+import LanguageSelector from './LanguageSelector';
 import { useApp, useTranslation } from '@/contexts/AppContext';
 import logo from '@/assets/sheharfix-logo.png';
 
@@ -65,6 +66,9 @@ const Layout: React.FC<LayoutProps> = ({ children, searchPlaceholder = "Search i
 
           {/* Right Side Actions */}
           <div className="flex items-center space-x-4">
+            {/* Language Selector */}
+            <LanguageSelector />
+
             {/* Theme Toggle */}
             <Button
               variant="ghost"
@@ -79,15 +83,7 @@ const Layout: React.FC<LayoutProps> = ({ children, searchPlaceholder = "Search i
             </Button>
 
             {/* Notifications */}
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="w-5 h-5" />
-              <Badge 
-                variant="destructive" 
-                className="absolute -top-1 -right-1 w-5 h-5 rounded-full p-0 flex items-center justify-center text-xs"
-              >
-                3
-              </Badge>
-            </Button>
+            <NotificationDropdown />
 
             {/* User Avatar */}
             <div className="flex items-center space-x-2">
