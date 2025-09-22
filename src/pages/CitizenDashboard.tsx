@@ -25,7 +25,7 @@ const CitizenDashboard = () => {
   ];
 
   type UiIssue = {
-    id: number;
+    id: string; // Mongo _id
     title: string;
     description?: string;
     category?: string;
@@ -48,16 +48,22 @@ const CitizenDashboard = () => {
         const rows: any[] = await res.json();
         if (cancelled) return;
         const mapped: UiIssue[] = rows.map((row) => ({
-          id: row.id,
+          id: row._id,
           title: row.title,
           description: row.description || '',
           category: capitalize(row.category || 'General'),
           status: mapStatus(row.status || 'submitted'),
-          reportedBy: row.created_by ? 'Citizen #' + row.created_by : 'Citizen',
-          date: row.created_at ? format(new Date(row.created_at), 'yyyy-MM-dd') : '',
+          reportedBy: row.createdBy?.username ? row.createdBy.username : 'Citizen',
+          date: row.createdAt ? format(new Date(row.createdAt), 'yyyy-MM-dd') : '',
           image: resolveImage(row),
-          location: row.lat && row.lng ? `${row.lat.toFixed(4)}, ${row.lng.toFixed(4)}` : undefined,
-        }));
+          location: row.location?.address,
+        }))
+        .sort((a, b) => {
+          const aResolved = a.status === 'resolved' ? 1 : 0;
+          const bResolved = b.status === 'resolved' ? 1 : 0;
+          if (aResolved !== bResolved) return aResolved - bResolved; // unresolved first
+          return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
+        });
         setRecentIssues(mapped);
       } catch (e) {
         // On error, keep empty list silently for now
@@ -71,7 +77,9 @@ const CitizenDashboard = () => {
   }, []);
 
   function resolveImage(row: any): string {
-    if (row.media_path) return row.media_path; // served from backend /uploads
+    if (row.resolutionPhotoUrl) return row.resolutionPhotoUrl;
+    if (row.mediaUrl) return row.mediaUrl; // Cloudinary or local fallback URL from Mongo backend
+    if (row.media_path) return row.media_path; // compatibility with SQLite server
     const cat = String(row.category || '').toLowerCase();
     if (cat.includes('pothole') || cat.includes('road')) return potholeImg;
     if (cat.includes('garbage') || cat.includes('sanitation')) return garbageImg;
@@ -84,7 +92,7 @@ const CitizenDashboard = () => {
   function mapStatus(s: string) {
     switch (s) {
       case 'resolved': return 'resolved';
-      case 'in_progress': return 'progress';
+      case 'in_progress': return 'in_progress';
       case 'acknowledged': return 'acknowledged';
       default: return 'reported';
     }
@@ -93,7 +101,7 @@ const CitizenDashboard = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'resolved': return 'status-resolved';
-      case 'progress': return 'status-progress';
+      case 'in_progress': return 'status-progress';
       case 'acknowledged': return 'status-acknowledged';
       default: return 'status-reported';
     }
@@ -102,7 +110,7 @@ const CitizenDashboard = () => {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'resolved': return 'Resolved';
-      case 'progress': return 'In Progress';
+      case 'in_progress': return 'In Progress';
       case 'acknowledged': return 'Acknowledged';
       default: return 'Reported';
     }
