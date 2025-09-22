@@ -14,7 +14,12 @@ const IssueSchema = new mongoose.Schema(
     },
     mediaUrl: { type: String },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    assignedNgos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'NGO' }]
+    assignedNgos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'NGO' }],
+    // Resolution metadata
+    resolvedAt: { type: Date },
+    resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    resolutionPhotoUrl: { type: String },
+    resolutionNote: { type: String },
   },
   { timestamps: true }
 );

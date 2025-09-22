@@ -21,8 +21,16 @@ router.post('/', async (req, res) => {
     const { title, description, category, priority, location, media } = req.body;
     let mediaUrl = '';
     if (media) {
-      const { secure_url } = await uploadBuffer(Buffer.from(media, 'base64'));
-      mediaUrl = secure_url;
+      try {
+        const result = await uploadBuffer(Buffer.from(media, 'base64'));
+        if (result && result.secure_url) {
+          mediaUrl = result.secure_url;
+        } else {
+          console.warn('[issues] upload returned no result/secure_url, proceeding without media');
+        }
+      } catch (upErr) {
+        console.warn('[issues] media upload failed, proceeding without media', upErr);
+      }
     }
 
     // Optional auth: if a valid Bearer token is provided, associate createdBy; otherwise allow anonymous
@@ -76,6 +84,46 @@ router.put('/:id', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('[issues]', e);
     res.status(500).json({ error: 'failed to update issue' });
+  }
+});
+
+// Mark as resolved with required photo
+router.patch('/:id/resolve', async (req, res) => {
+  try {
+    const { media, note } = req.body || {};
+    if (!media) return res.status(400).json({ error: 'resolution photo (media) required' });
+
+    let resolutionPhotoUrl = '';
+    try {
+      const result = await uploadBuffer(Buffer.from(media, 'base64'), 'sheharfix-resolutions');
+      if (result && result.secure_url) resolutionPhotoUrl = result.secure_url;
+    } catch (err) {
+      console.warn('[issues] resolution upload failed, proceeding without photo', err);
+    }
+
+    // Optional auth: capture who resolved if token provided
+    let resolvedBy = undefined;
+    const auth = req.headers.authorization || '';
+    if (auth.startsWith('Bearer ')) {
+      try {
+        const payload = jwt.verify(auth.slice(7), process.env.JWT_SECRET || 'dev_secret');
+        resolvedBy = payload.id;
+      } catch {}
+    }
+
+    const update = {
+      status: 'resolved',
+      resolvedAt: new Date(),
+      resolvedBy,
+      resolutionPhotoUrl: resolutionPhotoUrl || undefined,
+      resolutionNote: note || undefined,
+    };
+    const issue = await Issue.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!issue) return res.status(404).json({ error: 'issue not found' });
+    res.json(issue);
+  } catch (e) {
+    console.error('[issues]', e);
+    res.status(500).json({ error: 'failed to resolve issue' });
   }
 });
 

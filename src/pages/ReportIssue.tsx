@@ -96,21 +96,33 @@ const ReportIssue = () => {
 
     setIsSubmitting(true);
     try {
-      // Build multipart form-data to match server on port 3001
-      const fd = new FormData();
-      fd.append('title', formData.title);
-      fd.append('description', formData.description);
-      fd.append('category', formData.category);
-      fd.append('priority', formData.priority);
-      // Location is optional in server; keep simple fields for now
-      fd.append('lat', '');
-      fd.append('lng', '');
+      // Convert selected image to base64 for Mongo backend (expects JSON with base64 in `media`)
+      let mediaBase64 = '';
       if (selectedImage) {
-        fd.append('media', selectedImage);
+        mediaBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // result is dataURL like: data:image/png;base64,AAAA...
+            const commaIdx = result.indexOf(',');
+            resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
+          };
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(selectedImage);
+        });
       }
 
+      const payload: any = {
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        priority: formData.priority,
+        location: formData.location ? { address: formData.location } : undefined,
+        media: mediaBase64 || undefined,
+      };
+
       // Build headers and only include Authorization if we have a real token
-      const headers: Record<string, string> = {};
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const isRealToken = token && token !== 'mock-jwt-token-for-testing';
       if (isRealToken) {
         headers['Authorization'] = `Bearer ${token}`;
@@ -118,8 +130,8 @@ const ReportIssue = () => {
 
       const response = await fetch('/api/issues', {
         method: 'POST',
-        headers, // do NOT set Content-Type; browser sets multipart boundary
-        body: fd,
+        headers,
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
