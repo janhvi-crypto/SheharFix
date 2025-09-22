@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import LoadingScreen from '@/components/LoadingScreen';
 import RoleSelection from '@/components/RoleSelection';
 import LoginForm from '@/components/LoginForm';
+import SignUp from '@/components/SignUp';
 import { useApp, UserRole } from '@/contexts/AppContext';
 
 const Index = () => {
-  const [currentStep, setCurrentStep] = useState<'loading' | 'role-selection' | 'login' | 'dashboard'>('loading');
+  const [currentStep, setCurrentStep] = useState<'loading' | 'role-selection' | 'login' | 'signup' | 'dashboard'>('loading');
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [isSignUp, setIsSignUp] = useState(false);
   const { user, isLoading } = useApp();
   const navigate = useNavigate();
 
@@ -22,9 +24,10 @@ const Index = () => {
     }
   }, [user, isLoading, navigate]);
 
-  const handleRoleSelect = (role: UserRole) => {
+  const handleRoleSelect = (role: UserRole, signUp: boolean = false) => {
     setSelectedRole(role);
-    setCurrentStep('login');
+    setIsSignUp(signUp);
+    setCurrentStep(signUp ? 'signup' : 'login');
   };
 
   const handleLoginSuccess = () => {
@@ -35,6 +38,7 @@ const Index = () => {
   const handleBack = () => {
     setCurrentStep('role-selection');
     setSelectedRole(null);
+    setIsSignUp(false);
   };
 
   if (isLoading || currentStep === 'loading') {
@@ -48,6 +52,16 @@ const Index = () => {
   if (currentStep === 'login' && selectedRole) {
     return (
       <LoginForm
+        role={selectedRole}
+        onBack={handleBack}
+        onSuccess={handleLoginSuccess}
+      />
+    );
+  }
+
+  if (currentStep === 'signup' && selectedRole) {
+    return (
+      <SignUp
         role={selectedRole}
         onBack={handleBack}
         onSuccess={handleLoginSuccess}
