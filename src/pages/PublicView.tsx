@@ -5,80 +5,54 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Layout from '@/components/Layout';
 import LoadingScreen from '@/components/LoadingScreen';
-import samplePothole from '@/assets/sample-pothole.jpg';
-import sampleGarbage from '@/assets/sample-garbage.jpg';
-import sampleDrainage from '@/assets/sample-drainage.jpg';
-import sampleStreetlight from '@/assets/sample-streetlight.jpg';
+import toast from 'react-hot-toast';
+
+type Issue = {
+  _id: string;
+  title: string;
+  description?: string;
+  category?: string;
+  priority?: string;
+  status: 'submitted' | 'acknowledged' | 'in_progress' | 'resolved';
+  location?: { lat?: number; lng?: number; address?: string };
+  mediaUrl?: string; // before image
+  resolutionPhotoUrl?: string; // after image
+  createdAt: string;
+  resolvedAt?: string;
+  createdBy?: { username?: string } | null;
+};
 
 const PublicView = () => {
   const [isLoading, setIsLoading] = useState(true);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setTimeout(() => setIsLoading(false), 2000);
+    const load = async () => {
+      try {
+        setIsLoading(true);
+        const resp = await fetch('/api/issues');
+        if (!resp.ok) throw new Error('Failed to load issues');
+        const data: Issue[] = await resp.json();
+        const resolved = data.filter(i => i.status === 'resolved');
+        resolved.sort((a, b) => {
+          const ad = new Date(a.resolvedAt || a.createdAt).getTime();
+          const bd = new Date(b.resolvedAt || b.createdAt).getTime();
+          return bd - ad;
+        });
+        setIssues(resolved);
+      } catch (e: any) {
+        console.error(e);
+        setError(e.message || 'Failed to load');
+        toast.error('Failed to load resolved issues');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    load();
   }, []);
 
-  const resolvedIssues = [
-    {
-      id: 1,
-      title: 'Pothole Repair on MG Road',
-      description: 'Large pothole causing traffic issues near bus stop',
-      location: 'MG Road, Koramangala',
-      ward: 'Ward 185',
-      category: 'Roads',
-      reportedBy: 'Arjun Mehta',
-      resolvedDate: '2024-01-15',
-      beforeImage: samplePothole,
-      afterImage: samplePothole,
-      status: 'resolved',
-      upvotes: 23,
-      responseTime: '3 days'
-    },
-    {
-      id: 2,
-      title: 'Garbage Collection Improved',
-      description: 'Irregular garbage collection in residential area',
-      location: 'Jayanagar 4th Block',
-      ward: 'Ward 167',
-      category: 'Sanitation',
-      reportedBy: 'Priya Sharma',
-      resolvedDate: '2024-01-12',
-      beforeImage: sampleGarbage,
-      afterImage: sampleGarbage,
-      status: 'resolved',
-      upvotes: 18,
-      responseTime: '2 days'
-    },
-    {
-      id: 3,
-      title: 'Drainage System Cleared',
-      description: 'Blocked drainage causing waterlogging during rains',
-      location: 'BTM Layout 2nd Stage',
-      ward: 'Ward 198',
-      category: 'Drainage',
-      reportedBy: 'Rajeev Kumar',
-      resolvedDate: '2024-01-10',
-      beforeImage: sampleDrainage,
-      afterImage: sampleDrainage,
-      status: 'resolved',
-      upvotes: 31,
-      responseTime: '5 days'
-    },
-    {
-      id: 4,
-      title: 'Street Light Installation',
-      description: 'Dark street with no lighting causing safety concerns',
-      location: 'Indiranagar 12th Main',
-      ward: 'Ward 152',
-      category: 'Street Lighting',
-      reportedBy: 'Meera Iyer',
-      resolvedDate: '2024-01-08',
-      beforeImage: sampleStreetlight,
-      afterImage: sampleStreetlight,
-      status: 'resolved',
-      upvotes: 27,
-      responseTime: '4 days'
-    }
-  ];
+  const resolvedIssues = issues;
 
   const wardLeaderboard = [
     { ward: 'Ward 185 - Koramangala', issues: 47, resolved: 42, activeRate: 89.4 },
@@ -90,22 +64,39 @@ const PublicView = () => {
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
-      case 'Roads': return '🛣️';
-      case 'Sanitation': return '🗑️';
-      case 'Drainage': return '🌊';
-      case 'Street Lighting': return '💡';
+      case 'roads':
+      case 'road':
+      case 'pothole': return '🛣️';
+      case 'sanitation':
+      case 'garbage': return '🗑️';
+      case 'drainage': return '🌊';
+      case 'streetlight':
+      case 'street lighting': return '💡';
       default: return '⚠️';
     }
   };
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case 'Roads': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'Sanitation': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Drainage': return 'bg-cyan-100 text-cyan-800 border-cyan-200';
-      case 'Street Lighting': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'roads':
+      case 'road':
+      case 'pothole': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'sanitation':
+      case 'garbage': return 'bg-green-100 text-green-800 border-green-200';
+      case 'drainage': return 'bg-cyan-100 text-cyan-800 border-cyan-200';
+      case 'streetlight':
+      case 'street lighting': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
+  };
+
+  const formatResponseTime = (createdAt: string, resolvedAt?: string) => {
+    if (!resolvedAt) return '';
+    const start = new Date(createdAt).getTime();
+    const end = new Date(resolvedAt).getTime();
+    const diffMs = Math.max(end - start, 0);
+    const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    return `${days} day${days === 1 ? '' : 's'}`;
   };
 
   if (isLoading) {
@@ -133,7 +124,7 @@ const PublicView = () => {
               <div className="flex items-center space-x-2">
                 <CheckCircle className="w-5 h-5 text-green-600" />
                 <div>
-                  <p className="text-2xl font-bold">1,247</p>
+                  <p className="text-2xl font-bold">{resolvedIssues.length}</p>
                   <p className="text-sm text-muted-foreground">Issues Resolved</p>
                 </div>
               </div>
@@ -144,7 +135,19 @@ const PublicView = () => {
               <div className="flex items-center space-x-2">
                 <Clock className="w-5 h-5 text-blue-600" />
                 <div>
-                  <p className="text-2xl font-bold">2.8</p>
+                  <p className="text-2xl font-bold">
+                    {resolvedIssues.length > 0
+                      ? Math.round(
+                          resolvedIssues.reduce((acc, i) => {
+                            const s = new Date(i.createdAt).getTime();
+                            const e = new Date(i.resolvedAt || i.createdAt).getTime();
+                            return acc + Math.max(e - s, 0);
+                          }, 0) /
+                            resolvedIssues.length /
+                            (1000 * 60 * 60 * 24)
+                        )
+                      : 0}
+                  </p>
                   <p className="text-sm text-muted-foreground">Avg Response Days</p>
                 </div>
               </div>
@@ -178,23 +181,33 @@ const PublicView = () => {
           {/* Resolved Issues */}
           <div className="lg:col-span-2 space-y-4">
             <h2 className="text-xl font-semibold">Recently Resolved Issues</h2>
+            {error && (
+              <div className="p-3 rounded-md bg-red-100 text-red-700 border border-red-300">{error}</div>
+            )}
+            {resolvedIssues.length === 0 && !error && (
+              <Card className="card-gradient">
+                <CardContent className="p-6 text-center text-muted-foreground">
+                  No resolved issues yet. Check back soon.
+                </CardContent>
+              </Card>
+            )}
             {resolvedIssues.map((issue) => (
-              <Card key={issue.id} className="card-gradient">
+              <Card key={issue._id} className="card-gradient">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
-                        <span className="text-lg">{getCategoryIcon(issue.category)}</span>
+                        <span className="text-lg">{getCategoryIcon((issue.category || '').toLowerCase())}</span>
                         <h3 className="font-semibold">{issue.title}</h3>
-                        <Badge variant="outline" className={getCategoryColor(issue.category)}>
-                          {issue.category}
+                        <Badge variant="outline" className={getCategoryColor((issue.category || '').toLowerCase())}>
+                          {issue.category || 'General'}
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground mb-2">{issue.description}</p>
                       <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                        <span>📍 {issue.location}</span>
-                        <span>👤 {issue.reportedBy}</span>
-                        <span>⏱️ {issue.responseTime}</span>
+                        <span>📍 {issue.location?.address || '—'}</span>
+                        <span>👤 {issue.createdBy?.username || 'Anonymous'}</span>
+                        <span>⏱️ {formatResponseTime(issue.createdAt, issue.resolvedAt)}</span>
                       </div>
                     </div>
                     <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">
@@ -206,30 +219,39 @@ const PublicView = () => {
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <div className="space-y-1">
                       <p className="text-xs font-medium text-muted-foreground">Before</p>
-                      <img 
-                        src={issue.beforeImage} 
-                        alt="Before resolution"
-                        className="w-full h-24 object-cover rounded-lg"
-                      />
+                      {issue.mediaUrl ? (
+                        <img 
+                          src={issue.mediaUrl}
+                          alt="Before resolution"
+                          className="w-full h-24 object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-full h-24 rounded-lg bg-muted flex items-center justify-center text-xs text-muted-foreground">No image</div>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs font-medium text-muted-foreground">After</p>
-                      <img 
-                        src={issue.afterImage} 
-                        alt="After resolution"
-                        className="w-full h-24 object-cover rounded-lg opacity-90"
-                      />
+                      {issue.resolutionPhotoUrl ? (
+                        <img 
+                          src={issue.resolutionPhotoUrl}
+                          alt="After resolution"
+                          className="w-full h-24 object-cover rounded-lg opacity-90"
+                        />
+                      ) : (
+                        <div className="w-full h-24 rounded-lg bg-muted flex items-center justify-center text-xs text-muted-foreground">Pending</div>
+                      )}
                     </div>
                   </div>
                   
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">
-                      Resolved on {new Date(issue.resolvedDate).toLocaleDateString()}
+                      {issue.resolvedAt ? (
+                        <>Resolved on {new Date(issue.resolvedAt).toLocaleDateString()}</>
+                      ) : (
+                        <>Resolution in progress</>
+                      )}
                     </span>
-                    <div className="flex items-center space-x-1">
-                      <span>👍 {issue.upvotes}</span>
-                      <span className="text-muted-foreground">community confirmations</span>
-                    </div>
+                    <div />
                   </div>
                 </CardContent>
               </Card>
