@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Globe, Sun, Moon, Users, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,7 @@ import { useApp, useTranslation, Language } from '@/contexts/AppContext';
 import logo from '@/assets/sheharfix-logo.png';
 
 interface RoleSelectionProps {
-  onContinue: (role: 'citizen' | 'admin') => void;
+  onContinue: (role: 'citizen' | 'admin', signUp?: boolean) => void;
 }
 
 const RoleSelection: React.FC<RoleSelectionProps> = ({ onContinue }) => {
@@ -103,12 +104,21 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onContinue }) => {
                     <span>{t('voiceReporting')}</span>
                   </div>
                 </div>
-                <Button 
-                  className="w-full btn-citizen"
-                  onClick={() => onContinue('citizen')}
-                >
-                  {t('continueAsCitizen')}
-                </Button>
+                <div className="mt-6 space-y-3">
+                  <Button 
+                    className="w-full btn-citizen"
+                    onClick={() => onContinue('citizen')}
+                  >
+                    {t('continueAsCitizen')}
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => onContinue('citizen', true)}
+                  >
+                    Create Citizen Account
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -142,12 +152,21 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onContinue }) => {
                     <span>{t('navigateLocations')}</span>
                   </div>
                 </div>
-                <Button 
-                  className="w-full btn-admin"
-                  onClick={() => onContinue('admin')}
-                >
-                  {t('continueAsAdmin')}
-                </Button>
+                <div className="mt-6 space-y-3">
+                  <Button 
+                    className="w-full btn-admin"
+                    onClick={() => onContinue('admin')}
+                  >
+                    {t('continueAsAdmin')}
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => onContinue('admin', true)}
+                  >
+                    Create Admin Account
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
