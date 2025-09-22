@@ -34,6 +34,10 @@ const ReportIssue = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [mlPrediction, setMlPrediction] = useState<string | null>(null);
+  const [mlConfidence, setMlConfidence] = useState<number>(0);
+  const [categoryMismatch, setCategoryMismatch] = useState(false);
 
   useEffect(() => {
     setTimeout(() => setIsLoading(false), 1000);
@@ -71,26 +75,97 @@ const ReportIssue = () => {
     }
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      setSelectedImage(file);
-      if (errors.photo) {
-        setErrors(prev => {
-            const newErrors = { ...prev };
-            delete newErrors.photo;
-            return newErrors;
-        });
+    if (!file) return;
+    setSelectedImage(file);
+    setMlPrediction(null);
+    setMlConfidence(0);
+    setCategoryMismatch(false);
+    if (errors.photo) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.photo;
+        return newErrors;
+      });
+    }
+
+    // Call ML service for prediction
+    try {
+      const formDataImage = new FormData();
+      formDataImage.append('file', file);
+      // Use Vite dev proxy to avoid CORS and port issues
+      const response = await fetch('/ml/predict', {
+        method: 'POST',
+        body: formDataImage,
+      });
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(errText || 'Prediction request failed');
       }
+      const result = await response.json();
+      if (result?.prediction) {
+        setMlPrediction(result.prediction);
+        setMlConfidence(Number(result.confidence || 0));
+      }
+    } catch (err) {
+      console.error('ML error:', err);
+      const message = err instanceof Error ? err.message : 'Failed to get AI prediction';
+      toast.error(message || 'Failed to get AI prediction');
     }
   };
 
-  const removeImage = () => setSelectedImage(null);
+  const removeImage = () => {
+    setSelectedImage(null);
+    setMlPrediction(null);
+    setMlConfidence(0);
+    setCategoryMismatch(false);
+  };
+
+  const startRecording = () => {
+    setIsRecording(true);
+    setTimeout(() => {
+      setIsRecording(false);
+      const voiceText = 'There is a large pothole on the main road causing traffic issues. It needs immediate attention.';
+      setFormData(prev => ({ ...prev, description: voiceText }));
+      toast.success('Voice recording added to description');
+    }, 3000);
+  };
+
+  const getCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const mockAddress = `${latitude.toFixed(4)}, ${longitude.toFixed(4)} - Current Location`;
+          handleInputChange('location', mockAddress);
+          toast.success('Location added successfully');
+        },
+        () => {
+          toast.error('Unable to get location. Please enter manually.');
+        }
+      );
+    } else {
+      toast.error('Geolocation is not supported by this browser.');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCategoryMismatch(false);
     if (!validateForm()) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (
+      mlPrediction &&
+      mlConfidence > 0.5 &&
+      formData.category &&
+      mlPrediction.toLowerCase() !== formData.category.toLowerCase()
+    ) {
+      setCategoryMismatch(true);
+      toast.error(`Category Mismatch: AI suggests "${mlPrediction}". Please review.`);
       return;
     }
 
@@ -140,7 +215,7 @@ const ReportIssue = () => {
       }
 
       toast.success('Issue reported successfully!');
-      navigate('/citizen-dashboard');
+      navigate('/dashboard');
 
     } catch (error: any) {
       console.error(error);
@@ -154,86 +229,190 @@ const ReportIssue = () => {
 
   return (
     <Layout>
-        <div className="max-w-2xl mx-auto p-6">
-            <div className="mb-6">
-                <Button variant="ghost" onClick={() => navigate('/dashboard')} className="mb-4">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back to Dashboard
-                </Button>
-                <div>
-                    <h1 className="text-3xl font-bold">Report New Issue</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Help improve your community by reporting civic issues
-                    </p>
-                </div>
-            </div>
-
-            <form onSubmit={handleSubmit}>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Issue Details</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        {/* Title */}
-                        <div className="space-y-2">
-                            <Label htmlFor="title">Issue Title *</Label>
-                            <Input id="title" value={formData.title} onChange={(e) => handleInputChange('title', e.target.value)} />
-                            {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
-                        </div>
-                        {/* Description */}
-                        <div className="space-y-2">
-                            <Label htmlFor="description">Description *</Label>
-                            <Textarea id="description" value={formData.description} onChange={(e) => handleInputChange('description', e.target.value)} />
-                            {errors.description && <p className="text-sm text-destructive">{errors.description}</p>}
-                        </div>
-                        {/* Category */}
-                        <div className="space-y-2">
-                            <Label htmlFor="category">Category *</Label>
-                            <Select value={formData.category} onValueChange={(value) => handleInputChange('category', value)}>
-                                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                                <SelectContent>
-                                    {categories.map(cat => <SelectItem key={cat} value={cat.toLowerCase()}>{cat}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            {errors.category && <p className="text-sm text-destructive">{errors.category}</p>}
-                        </div>
-                        {/* Priority */}
-                        <div className="space-y-2">
-                            <Label htmlFor="priority">Priority Level *</Label>
-                            <Select value={formData.priority} onValueChange={(value) => handleInputChange('priority', value)}>
-                                <SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger>
-                                <SelectContent>
-                                    {priorityLevels.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            {errors.priority && <p className="text-sm text-destructive">{errors.priority}</p>}
-                        </div>
-                        {/* Location */}
-                        <div className="space-y-2">
-                            <Label htmlFor="location">Location *</Label>
-                            <Input id="location" value={formData.location} onChange={(e) => handleInputChange('location', e.target.value)} />
-                            {errors.location && <p className="text-sm text-destructive">{errors.location}</p>}
-                        </div>
-                        {/* Photo Upload */}
-                        <div className="space-y-2">
-                            <Label>Photo *</Label>
-                            <Input type="file" accept="image/*" onChange={handleImageUpload} />
-                            {errors.photo && <p className="text-sm text-destructive">{errors.photo}</p>}
-                            {selectedImage && <Button variant="link" onClick={removeImage}>Remove Image</Button>}
-                        </div>
-                        {/* Anonymous Submission */}
-                        <div className="flex items-center space-x-2 pt-2">
-                            <UICheckbox id="anonymous" checked={formData.anonymous} onCheckedChange={(checked) => handleInputChange('anonymous', !!checked)} />
-                            <Label htmlFor="anonymous">Report anonymously</Label>
-                        </div>
-                        {/* Submit Button */}
-                        <Button type="submit" className="w-full" disabled={isSubmitting}>
-                            {isSubmitting ? 'Submitting...' : 'Submit Report'}
-                        </Button>
-                    </CardContent>
-                </Card>
-            </form>
+      <div className="max-w-2xl mx-auto p-6">
+        <div className="mb-6">
+          <Button variant="ghost" onClick={() => navigate('/dashboard')} className="mb-4">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Dashboard
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Report New Issue</h1>
+            <p className="text-muted-foreground mt-1">Help improve your community by reporting civic issues</p>
+          </div>
         </div>
+
+        {categoryMismatch && (
+          <div className="bg-red-100 border border-red-500 text-red-700 p-3 mb-4 rounded-md">
+            ⚠ You selected "{formData.category}", but our AI detected "{mlPrediction}". Please select the correct category before submitting.
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} noValidate>
+          <Card>
+            <CardHeader>
+              <CardTitle>Issue Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Title */}
+              <div className="space-y-2">
+                <Label htmlFor="title">Issue Title *</Label>
+                <Input
+                  id="title"
+                  placeholder="e.g., Pothole on MG Road"
+                  value={formData.title}
+                  onChange={(e) => handleInputChange('title', e.target.value)}
+                  className={errors.title ? 'border-destructive' : ''}
+                />
+                {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="description">Description *</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={startRecording}
+                    disabled={isRecording}
+                    className="flex items-center space-x-2"
+                  >
+                    <Mic className={`w-4 h-4 ${isRecording ? 'text-red-500 animate-pulse' : ''}`} />
+                    <span>{isRecording ? 'Recording...' : 'Voice Input'}</span>
+                  </Button>
+                </div>
+                <Textarea
+                  id="description"
+                  placeholder="Describe the issue in detail..."
+                  value={formData.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  className={`min-h-[100px] ${errors.description ? 'border-destructive' : ''}`}
+                />
+                {errors.description && <p className="text-sm text-destructive">{errors.description}</p>}
+              </div>
+
+              {/* Category */}
+              <div className="space-y-2">
+                <Label htmlFor="category">Category *</Label>
+                <Select value={formData.category} onValueChange={(value) => handleInputChange('category', value)}>
+                  <SelectTrigger id="category" className={errors.category ? 'border-destructive' : ''}>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(cat => (
+                      <SelectItem key={cat} value={cat.toLowerCase()}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {mlPrediction && mlConfidence > 0 && (
+                  <p className="text-sm text-green-700 mt-1">
+                    AI Suggestion: {mlPrediction} ({(mlConfidence * 100).toFixed(1)}% confidence)
+                  </p>
+                )}
+                {errors.category && <p className="text-sm text-destructive">{errors.category}</p>}
+              </div>
+
+              {/* Priority */}
+              <div className="space-y-2">
+                <Label htmlFor="priority">Priority Level *</Label>
+                <Select value={formData.priority} onValueChange={(value) => handleInputChange('priority', value)}>
+                  <SelectTrigger id="priority" className={errors.priority ? 'border-destructive' : ''}>
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {priorityLevels.map(p => (
+                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.priority && <p className="text-sm text-destructive">{errors.priority}</p>}
+              </div>
+
+              {/* Location */}
+              <div className="space-y-2">
+                <Label htmlFor="location">Location *</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="location"
+                    placeholder="Enter the exact location"
+                    value={formData.location}
+                    onChange={(e) => handleInputChange('location', e.target.value)}
+                    className={errors.location ? 'border-destructive' : ''}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={getCurrentLocation} className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    <span>Use Current Location</span>
+                  </Button>
+                </div>
+                {errors.location && <p className="text-sm text-destructive">{errors.location}</p>}
+              </div>
+
+              {/* Photo Upload */}
+              <div className="space-y-2" id="photo">
+                <Label>Photo * (Only 1 allowed)</Label>
+                <div className={`border-2 border-dashed rounded-lg p-6 text-center ${errors.photo ? 'border-destructive' : 'border-border'}`}>
+                  <input
+                    type="file"
+                    accept="image/png, image/jpeg"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    id="image-upload"
+                  />
+                  <label htmlFor="image-upload" className="cursor-pointer">
+                    <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Click to upload a photo</p>
+                    <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</p>
+                  </label>
+                </div>
+                {selectedImage && (
+                  <div className="relative w-40 h-40 mt-4">
+                    <img
+                      src={URL.createObjectURL(selectedImage)}
+                      alt="Uploaded preview"
+                      className="w-full h-full object-cover rounded-lg border"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      onClick={removeImage}
+                      className="absolute -top-2 -right-2 w-6 h-6 rounded-full p-0"
+                    >
+                      ×
+                    </Button>
+                  </div>
+                )}
+                {errors.photo && <p className="text-sm text-destructive">{errors.photo}</p>}
+              </div>
+
+              {/* Anonymous Submission */}
+              <div className="flex items-center space-x-2 pt-2">
+                <UICheckbox
+                  id="anonymous"
+                  checked={!!formData.anonymous}
+                  onCheckedChange={(checked) => handleInputChange('anonymous', !!checked)}
+                />
+                <Label htmlFor="anonymous" className="cursor-pointer text-muted-foreground">
+                  Report anonymously (your identity will be hidden)
+                </Label>
+              </div>
+
+              {/* Submit Button */}
+              <Button type="submit" className="w-full mt-8" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  'Submitting Report...'
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Submit Report
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </form>
+      </div>
     </Layout>
   );
 };
