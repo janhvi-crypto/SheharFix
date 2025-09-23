@@ -40,24 +40,6 @@ URL: https://lovable.dev/projects/604cbf6f-d9cd-4104-b6d0-ea6bb8259679
 
 ---
 
-## 📂 Project Structure
-
-```bash
-SheharFix/
-├── public/              # Static assets (icons, images, etc.)
-├── src/                 # Source code
-│   ├── components/      # Reusable UI components
-│   ├── pages/           # App pages (Citizen app + Admin portal views)
-│   ├── utils/           # Helper functions & utilities
-│   └── main.tsx         # App entry point
-│
-├── components.json      # Shadcn UI config
-├── index.html           # Entry HTML file
-├── package.json         # Dependencies & scripts
-├── tailwind.config.ts   # Tailwind CSS configuration
-├── tsconfig.json        # TypeScript configuration
-└── vite.config.ts       # Vite build & dev server configuration
-```
 
 
 #⚡ Installation & Setup
@@ -87,6 +69,36 @@ Open 👉 http://localhost:5173
 ##4.Build for production
 ```bash
 npm run build
+```
+Backend Setup
+```
+cd backend
+yarn install
+yarn start
+```
+
+Machine Learning Service (ML)
+```
+cd C:\SheharFix\ml
+
+# 1️⃣ Create virtual environment (if not already)
+python -m venv .venv
+
+# 2️⃣ Activate virtual environment
+.venv\Scripts\Activate.ps1
+
+# 3️⃣ Install dependencies
+pip install -r requirements.txt
+pip install fastapi uvicorn tensorflow pillow python-multipart
+
+# 4️⃣ Start ML API
+python app.py
+
+```
+Pull Latest Changes
+```
+git pull origin main
+
 ```
 #📸 Screenshots
 

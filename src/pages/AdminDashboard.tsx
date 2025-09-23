@@ -1,15 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle, Clock, Users, MapPin, Navigation, Camera, Settings, IndianRupee, BarChart3, TrendingUp, Shield, Image as ImageIcon } from 'lucide-react';
+
+import React, { useState } from 'react';
+import { AlertTriangle, CheckCircle, Clock, Users, MapPin, Navigation, Camera, Settings, IndianRupee, BarChart3, TrendingUp, Shield, Upload } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import Layout from '@/components/Layout';
 import { useApp } from '@/contexts/AppContext';
-import samplePothole from '@/assets/sample-pothole.jpg';
+import { useToast } from '@/hooks/use-toast';
 
 const AdminDashboard = () => {
-  const { user } = useApp();
+  const { user, issues, uploadIssuePhoto, markIssueResolved } = useApp();
+  const { toast } = useToast();
+  const [uploadingPhoto, setUploadingPhoto] = useState<number | null>(null);
+  const [resolvingIssue, setResolvingIssue] = useState<number | null>(null);
 
   // Transparency data for administrators
   const transparencyData = {
@@ -72,143 +77,88 @@ const AdminDashboard = () => {
     },
   ];
 
-  type AdminIssue = {
-    id: string; // Mongo _id
-    title: string;
-    description?: string;
-    category?: string;
-    priority?: string;
-    status: 'submitted' | 'acknowledged' | 'in_progress' | 'resolved' | string;
-    location?: string;
-    reportedBy?: string;
-    reportedDate?: string;
-    image: string; // mediaUrl or resolutionPhotoUrl
-    upvotes?: number;
-    estimatedTime?: string;
-  };
-
-  const [assignedIssues, setAssignedIssues] = useState<AdminIssue[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [resolveModal, setResolveModal] = useState<{ open: boolean; issueId?: string }>(() => ({ open: false }));
-  const [resolveFile, setResolveFile] = useState<File | null>(null);
-  const [resolveNote, setResolveNote] = useState('');
-  const [resolving, setResolving] = useState(false);
-  const refetchIssues = async () => {
-    try {
-      const res = await fetch('/api/issues');
-      if (!res.ok) throw new Error('Failed to fetch');
-      const rows: any[] = await res.json();
-      // Map Mongo docs; keep resolved visible but sort unresolved first, then by createdAt desc
-      const mapped: AdminIssue[] = rows.map(r => ({
-        id: r._id,
-        title: r.title,
-        description: r.description || '',
-        category: r.category || 'General',
-        priority: r.priority || 'medium',
-        status: r.status || 'submitted',
-        location: r.location?.address,
-        reportedBy: r.createdBy ? `Citizen ${r.createdBy.username || ''}`.trim() : 'Citizen',
-        reportedDate: r.createdAt,
-        image: r.resolutionPhotoUrl || r.mediaUrl || samplePothole,
-        upvotes: 0,
-        estimatedTime: '2 days',
-      }))
-      .sort((a, b) => {
-        const aResolved = a.status === 'resolved' ? 1 : 0;
-        const bResolved = b.status === 'resolved' ? 1 : 0;
-        if (aResolved !== bResolved) return aResolved - bResolved; // unresolved (0) first
-        return new Date(b.reportedDate || 0).getTime() - new Date(a.reportedDate || 0).getTime();
-      });
-      setAssignedIssues(mapped);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    refetchIssues();
-  }, []);
-  const fileInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
-
-  const triggerUpload = (id: string) => {
-    const input = fileInputsRef.current[id];
-    input?.click();
-  };
-
-  const onFileSelected = async (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handlePhotoUpload = async (issueId: number, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
-    // Optimistic preview
-    const previewUrl = URL.createObjectURL(file);
-    setAssignedIssues(prev => prev.map(it => it.id === id ? { ...it, image: previewUrl } : it));
-    // Attempt to persist to backend if this ID exists server-side
+
+    setUploadingPhoto(issueId);
     try {
-      const form = new FormData();
-      form.append('media', file);
-      // This route exists for the SQLite server; for Mongo we keep preview only.
-      const resp = await fetch(`/api/issues/${id}/media`, { method: 'PATCH', body: form });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data?.mediaUrl || data?.media_path) {
-          const url = data.mediaUrl || data.media_path;
-          setAssignedIssues(prev => prev.map(it => it.id === id ? { ...it, image: url } : it));
-        }
-      }
-    } catch {}
-    // Reset so selecting the same file again triggers change
-    e.currentTarget.value = '';
-  };
+      // Replace with actual API call to your backend
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('issueId', issueId.toString());
 
-  const openResolveModal = (id: string) => {
-    setResolveModal({ open: true, issueId: id });
-    setResolveFile(null);
-    setResolveNote('');
-  };
-
-  async function fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        const commaIdx = result.indexOf(',');
-        resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
-      };
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
-  }
-
-  const submitResolve = async () => {
-    if (!resolveModal.issueId || !resolveFile) return;
-    setResolving(true);
-    try {
-      const media = await fileToBase64(resolveFile);
-      const resp = await fetch(`/api/issues/${resolveModal.issueId}/resolve`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ media, note: resolveNote || undefined }),
+      const response = await fetch('/api/issues/upload-progress-photo', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`
+        },
+        body: formData
       });
-      if (!resp.ok) throw new Error('Failed to resolve');
-      const updated = await resp.json();
-      setAssignedIssues(prev => prev.map(it => it.id === updated._id ? {
-        ...it,
-        status: updated.status,
-        image: updated.resolutionPhotoUrl || it.image,
-      } : it).sort((a, b) => {
-        const aResolved = a.status === 'resolved' ? 1 : 0;
-        const bResolved = b.status === 'resolved' ? 1 : 0;
-        if (aResolved !== bResolved) return aResolved - bResolved;
-        return new Date(b.reportedDate || 0).getTime() - new Date(a.reportedDate || 0).getTime();
-      }));
-      setResolveModal({ open: false });
-    } catch (e) {
-      // no-op for now
+
+      if (!response.ok) {
+        throw new Error('Failed to upload photo');
+      }
+
+      const result = await response.json();
+      
+      // Update local state through context (temporary until real-time updates)
+      await uploadIssuePhoto(issueId, file);
+      
+      toast({
+        title: "Photo uploaded successfully",
+        description: "Progress photo has been attached to the issue."
+      });
+    } catch (error) {
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload photo. Please try again.",
+        variant: "destructive"
+      });
     } finally {
-      setResolving(false);
+      setUploadingPhoto(null);
     }
   };
 
-  
+  const handleMarkResolved = async (issueId: number) => {
+    setResolvingIssue(issueId);
+    try {
+      // Replace with actual API call to your backend
+      const response = await fetch(`/api/issues/${issueId}/resolve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`
+        },
+        body: JSON.stringify({
+          cost: '₹15,000', // You can make this dynamic
+          resolvedDate: new Date().toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to mark issue as resolved');
+      }
+
+      const resolvedIssue = await response.json();
+      
+      // Update local state through context (temporary until real-time updates)
+      markIssueResolved(issueId);
+      
+      toast({
+        title: "Issue resolved successfully",
+        description: "The issue has been marked as resolved and moved to public view."
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to resolve",
+        description: "Failed to mark issue as resolved. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setResolvingIssue(null);
+    }
+  };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -239,7 +189,6 @@ const AdminDashboard = () => {
   };
 
   return (
-    <>
     <Layout searchPlaceholder="Search assigned issues, locations, or categories...">
       <div className="p-6 space-y-6">
         {/* Header */}
@@ -352,20 +301,20 @@ const AdminDashboard = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Issues Assigned to You</h2>
-            <Button variant="outline" size="sm">
-              <MapPin className="w-4 h-4 mr-2" />
-              View on Map
-            </Button>
+            <div className="flex space-x-2">
+              <Button variant="outline" size="sm">
+                <MapPin className="w-4 h-4 mr-2" />
+                View on Map
+              </Button>
+              <Button size="sm" onClick={() => window.location.href = '/manage-issues'}>
+                <Settings className="w-4 h-4 mr-2" />
+                Manage Issues
+              </Button>
+            </div>
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {loading && (
-              <div className="text-sm text-muted-foreground">Loading assigned issues…</div>
-            )}
-            {!loading && assignedIssues.length === 0 && (
-              <div className="text-sm text-muted-foreground">No assigned issues. Great job!</div>
-            )}
-            {assignedIssues.map((issue) => (
+            {issues.map((issue) => (
               <Card key={issue.id} className="card-gradient">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
@@ -384,17 +333,32 @@ const AdminDashboard = () => {
                         <span>⏱️ Est. {issue.estimatedTime}</span>
                       </div>
                     </div>
-                    <Badge variant="outline" className={getStatusColor(issue.status === 'in_progress' ? 'in-progress' : issue.status)}>
-                      {issue.status === 'in_progress' ? 'in progress' : issue.status.replace('-', ' ')}
+                    <Badge variant="outline" className={getStatusColor(issue.status)}>
+                      {issue.status.replace('-', ' ')}
                     </Badge>
                   </div>
                   
                   <div className="mb-3">
-                    <img 
-                      src={issue.image} 
-                      alt="Issue location"
-                      className="w-full h-32 object-cover rounded-lg"
-                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground">Before</p>
+                        <img 
+                          src={issue.image} 
+                          alt="Before resolution"
+                          className="w-full h-24 object-cover rounded-lg"
+                        />
+                      </div>
+                      {issue.afterImage && (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground">After/Progress</p>
+                          <img 
+                            src={issue.afterImage} 
+                            alt="After/Progress"
+                            className="w-full h-24 object-cover rounded-lg"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="flex items-center justify-between text-xs mb-3">
@@ -412,26 +376,42 @@ const AdminDashboard = () => {
                       <Navigation className="w-3 h-3 mr-1" />
                       Navigate
                     </Button>
-                    {/* Hidden input for file selection */}
-                    <input
-                      ref={el => { fileInputsRef.current[issue.id] = el; }}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => onFileSelected(issue.id, e)}
-                    />
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => triggerUpload(issue.id)}>
-                      <Camera className="w-3 h-3 mr-1" />
-                      Upload Photo
-                    </Button>
-                    <Button
-                      variant={issue.status === 'resolved' ? 'default' : 'outline'}
+                    <div className="flex-1">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        id={`photo-upload-${issue.id}`}
+                        onChange={(e) => handlePhotoUpload(issue.id, e)}
+                        disabled={uploadingPhoto === issue.id}
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full"
+                        disabled={uploadingPhoto === issue.id}
+                        onClick={() => document.getElementById(`photo-upload-${issue.id}`)?.click()}
+                      >
+                        {uploadingPhoto === issue.id ? (
+                          <Upload className="w-3 h-3 mr-1 animate-spin" />
+                        ) : (
+                          <Camera className="w-3 h-3 mr-1" />
+                        )}
+                        {uploadingPhoto === issue.id ? 'Uploading...' : 'Upload Photo'}
+                      </Button>
+                    </div>
+                    <Button 
+                      variant="outline" 
                       size="sm"
-                      className={issue.status === 'resolved' ? 'bg-green-600 hover:bg-green-600 text-white' : ''}
-                      onClick={() => openResolveModal(issue.id)}
+                      disabled={resolvingIssue === issue.id}
+                      onClick={() => handleMarkResolved(issue.id)}
                     >
-                      {issue.status === 'resolved' ? 'Resolved' : 'Mark Resolved'}
+                      {resolvingIssue === issue.id ? (
+                        <CheckCircle className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                      )}
+                      {resolvingIssue === issue.id ? 'Resolving...' : 'Mark Resolved'}
                     </Button>
                   </div>
                 </CardContent>
@@ -498,38 +478,6 @@ const AdminDashboard = () => {
         </div>
       </div>
     </Layout>
-
-    {/* Resolve Modal */}
-    {resolveModal.open && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div className="w-full max-w-md rounded-lg bg-card border p-4 space-y-4">
-          <div className="flex items-center space-x-2">
-            <ImageIcon className="w-5 h-5" />
-            <h3 className="font-semibold">Upload Resolution Photo</h3>
-          </div>
-          <p className="text-sm text-muted-foreground">A photo is required to mark the issue as resolved.</p>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setResolveFile(e.target.files?.[0] || null)}
-          />
-          <textarea
-            className="w-full p-2 border rounded-md bg-background"
-            placeholder="Optional note"
-            rows={3}
-            value={resolveNote}
-            onChange={(e) => setResolveNote(e.target.value)}
-          />
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setResolveModal({ open: false })}>Cancel</Button>
-            <Button disabled={!resolveFile || resolving} onClick={submitResolve}>
-              {resolving ? 'Submitting...' : 'Submit & Mark Resolved'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    )}
-    </>
   );
 };
 
