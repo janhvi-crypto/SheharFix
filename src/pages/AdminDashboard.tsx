@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { AlertTriangle, CheckCircle, Clock, Users, MapPin, Navigation, Camera, Settings, IndianRupee, BarChart3, TrendingUp, Shield, Upload } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import Layout from '@/components/Layout';
 import { useApp } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
+import { apiService } from '@/services/api';
 
 const AdminDashboard = () => {
   const { user, issues, uploadIssuePhoto, markIssueResolved } = useApp();
@@ -83,26 +83,13 @@ const AdminDashboard = () => {
 
     setUploadingPhoto(issueId);
     try {
-      // Replace with actual API call to your backend
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('issueId', issueId.toString());
-
-      const response = await fetch('/api/issues/upload-progress-photo', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`
-        },
-        body: formData
+      // Use API service to upload progress photo
+      await apiService.updateIssue({
+        issueId: issueId.toString(),
+        afterImage: file
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to upload photo');
-      }
-
-      const result = await response.json();
       
-      // Update local state through context (temporary until real-time updates)
+      // Update local state through context
       await uploadIssuePhoto(issueId, file);
       
       toast({
@@ -123,26 +110,10 @@ const AdminDashboard = () => {
   const handleMarkResolved = async (issueId: number) => {
     setResolvingIssue(issueId);
     try {
-      // Replace with actual API call to your backend
-      const response = await fetch(`/api/issues/${issueId}/resolve`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`
-        },
-        body: JSON.stringify({
-          cost: '₹15,000', // You can make this dynamic
-          resolvedDate: new Date().toISOString()
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to mark issue as resolved');
-      }
-
-      const resolvedIssue = await response.json();
+      // Use API service to resolve issue
+      await apiService.resolveIssue(issueId.toString(), undefined, '₹15,000');
       
-      // Update local state through context (temporary until real-time updates)
+      // Update local state through context
       markIssueResolved(issueId);
       
       toast({
