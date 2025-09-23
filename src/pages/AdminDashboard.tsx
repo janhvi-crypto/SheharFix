@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle, Clock, Users, MapPin, Navigation, Camera, Settings, IndianRupee, BarChart3, TrendingUp, Shield, Image as ImageIcon } from 'lucide-react';
+
+import React from 'react';
+import { AlertTriangle, CheckCircle, Clock, Users, MapPin, Navigation, Camera, Settings, IndianRupee, BarChart3, TrendingUp, Shield } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -7,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import Layout from '@/components/Layout';
 import { useApp } from '@/contexts/AppContext';
 import samplePothole from '@/assets/sample-pothole.jpg';
+import sampleGarbage from '@/assets/sample-garbage.jpg';
+import sampleDrainage from '@/assets/sample-drainage.jpg';
+import sampleStreetlight from '@/assets/sample-streetlight.jpg';
 
 const AdminDashboard = () => {
   const { user } = useApp();
@@ -72,143 +76,68 @@ const AdminDashboard = () => {
     },
   ];
 
-  type AdminIssue = {
-    id: string; // Mongo _id
-    title: string;
-    description?: string;
-    category?: string;
-    priority?: string;
-    status: 'submitted' | 'acknowledged' | 'in_progress' | 'resolved' | string;
-    location?: string;
-    reportedBy?: string;
-    reportedDate?: string;
-    image: string; // mediaUrl or resolutionPhotoUrl
-    upvotes?: number;
-    estimatedTime?: string;
-  };
-
-  const [assignedIssues, setAssignedIssues] = useState<AdminIssue[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [resolveModal, setResolveModal] = useState<{ open: boolean; issueId?: string }>(() => ({ open: false }));
-  const [resolveFile, setResolveFile] = useState<File | null>(null);
-  const [resolveNote, setResolveNote] = useState('');
-  const [resolving, setResolving] = useState(false);
-  const refetchIssues = async () => {
-    try {
-      const res = await fetch('/api/issues');
-      if (!res.ok) throw new Error('Failed to fetch');
-      const rows: any[] = await res.json();
-      // Map Mongo docs; keep resolved visible but sort unresolved first, then by createdAt desc
-      const mapped: AdminIssue[] = rows.map(r => ({
-        id: r._id,
-        title: r.title,
-        description: r.description || '',
-        category: r.category || 'General',
-        priority: r.priority || 'medium',
-        status: r.status || 'submitted',
-        location: r.location?.address,
-        reportedBy: r.createdBy ? `Citizen ${r.createdBy.username || ''}`.trim() : 'Citizen',
-        reportedDate: r.createdAt,
-        image: r.resolutionPhotoUrl || r.mediaUrl || samplePothole,
-        upvotes: 0,
-        estimatedTime: '2 days',
-      }))
-      .sort((a, b) => {
-        const aResolved = a.status === 'resolved' ? 1 : 0;
-        const bResolved = b.status === 'resolved' ? 1 : 0;
-        if (aResolved !== bResolved) return aResolved - bResolved; // unresolved (0) first
-        return new Date(b.reportedDate || 0).getTime() - new Date(a.reportedDate || 0).getTime();
-      });
-      setAssignedIssues(mapped);
-    } finally {
-      setLoading(false);
+  const assignedIssues = [
+    {
+      id: 1,
+      title: 'Large pothole on MG Road',
+      description: 'Deep pothole causing traffic congestion near bus stop',
+      location: 'MG Road, Koramangala',
+      priority: 'high',
+      category: 'Roads',
+      reportedBy: 'Arjun Mehta',
+      reportedDate: '2024-01-20',
+      assignedTo: 'Road Maintenance Team',
+      image: samplePothole,
+      status: 'in-progress',
+      upvotes: 15,
+      estimatedTime: '2 days'
+    },
+    {
+      id: 2,
+      title: 'Overflowing garbage bin',
+      description: 'Garbage bin overflowing for 3 days, creating hygiene issues',
+      location: 'Jayanagar 4th Block',
+      priority: 'medium',
+      category: 'Sanitation',
+      reportedBy: 'Priya Sharma',
+      reportedDate: '2024-01-19',
+      assignedTo: 'Sanitation Department',
+      image: sampleGarbage,
+      status: 'assigned',
+      upvotes: 8,
+      estimatedTime: '1 day'
+    },
+    {
+      id: 3,
+      title: 'Blocked drainage causing flooding',
+      description: 'Drainage system completely blocked after recent rains',
+      location: 'BTM Layout 2nd Stage',
+      priority: 'high',
+      category: 'Drainage',
+      reportedBy: 'Rajeev Kumar',
+      reportedDate: '2024-01-18',
+      assignedTo: 'Water Works Department',
+      image: sampleDrainage,
+      status: 'in-progress',
+      upvotes: 22,
+      estimatedTime: '3 days'
+    },
+    {
+      id: 4,
+      title: 'Street light not working',
+      description: 'Multiple street lights not functioning, safety concern',
+      location: 'Indiranagar 12th Main',
+      priority: 'medium',
+      category: 'Street Lighting',
+      reportedBy: 'Meera Iyer',
+      reportedDate: '2024-01-17',
+      assignedTo: 'Electrical Department',
+      image: sampleStreetlight,
+      status: 'assigned',
+      upvotes: 6,
+      estimatedTime: '1 day'
     }
-  };
-
-  useEffect(() => {
-    refetchIssues();
-  }, []);
-  const fileInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
-
-  const triggerUpload = (id: string) => {
-    const input = fileInputsRef.current[id];
-    input?.click();
-  };
-
-  const onFileSelected = async (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    // Optimistic preview
-    const previewUrl = URL.createObjectURL(file);
-    setAssignedIssues(prev => prev.map(it => it.id === id ? { ...it, image: previewUrl } : it));
-    // Attempt to persist to backend if this ID exists server-side
-    try {
-      const form = new FormData();
-      form.append('media', file);
-      // This route exists for the SQLite server; for Mongo we keep preview only.
-      const resp = await fetch(`/api/issues/${id}/media`, { method: 'PATCH', body: form });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data?.mediaUrl || data?.media_path) {
-          const url = data.mediaUrl || data.media_path;
-          setAssignedIssues(prev => prev.map(it => it.id === id ? { ...it, image: url } : it));
-        }
-      }
-    } catch {}
-    // Reset so selecting the same file again triggers change
-    e.currentTarget.value = '';
-  };
-
-  const openResolveModal = (id: string) => {
-    setResolveModal({ open: true, issueId: id });
-    setResolveFile(null);
-    setResolveNote('');
-  };
-
-  async function fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        const commaIdx = result.indexOf(',');
-        resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
-      };
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
-  }
-
-  const submitResolve = async () => {
-    if (!resolveModal.issueId || !resolveFile) return;
-    setResolving(true);
-    try {
-      const media = await fileToBase64(resolveFile);
-      const resp = await fetch(`/api/issues/${resolveModal.issueId}/resolve`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ media, note: resolveNote || undefined }),
-      });
-      if (!resp.ok) throw new Error('Failed to resolve');
-      const updated = await resp.json();
-      setAssignedIssues(prev => prev.map(it => it.id === updated._id ? {
-        ...it,
-        status: updated.status,
-        image: updated.resolutionPhotoUrl || it.image,
-      } : it).sort((a, b) => {
-        const aResolved = a.status === 'resolved' ? 1 : 0;
-        const bResolved = b.status === 'resolved' ? 1 : 0;
-        if (aResolved !== bResolved) return aResolved - bResolved;
-        return new Date(b.reportedDate || 0).getTime() - new Date(a.reportedDate || 0).getTime();
-      }));
-      setResolveModal({ open: false });
-    } catch (e) {
-      // no-op for now
-    } finally {
-      setResolving(false);
-    }
-  };
-
-  
+  ];
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -239,7 +168,6 @@ const AdminDashboard = () => {
   };
 
   return (
-    <>
     <Layout searchPlaceholder="Search assigned issues, locations, or categories...">
       <div className="p-6 space-y-6">
         {/* Header */}
@@ -352,19 +280,19 @@ const AdminDashboard = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Issues Assigned to You</h2>
-            <Button variant="outline" size="sm">
-              <MapPin className="w-4 h-4 mr-2" />
-              View on Map
-            </Button>
+            <div className="flex space-x-2">
+              <Button variant="outline" size="sm">
+                <MapPin className="w-4 h-4 mr-2" />
+                View on Map
+              </Button>
+              <Button size="sm" onClick={() => window.location.href = '/manage-issues'}>
+                <Settings className="w-4 h-4 mr-2" />
+                Manage Issues
+              </Button>
+            </div>
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {loading && (
-              <div className="text-sm text-muted-foreground">Loading assigned issues…</div>
-            )}
-            {!loading && assignedIssues.length === 0 && (
-              <div className="text-sm text-muted-foreground">No assigned issues. Great job!</div>
-            )}
             {assignedIssues.map((issue) => (
               <Card key={issue.id} className="card-gradient">
                 <CardContent className="p-4">
@@ -384,8 +312,8 @@ const AdminDashboard = () => {
                         <span>⏱️ Est. {issue.estimatedTime}</span>
                       </div>
                     </div>
-                    <Badge variant="outline" className={getStatusColor(issue.status === 'in_progress' ? 'in-progress' : issue.status)}>
-                      {issue.status === 'in_progress' ? 'in progress' : issue.status.replace('-', ' ')}
+                    <Badge variant="outline" className={getStatusColor(issue.status)}>
+                      {issue.status.replace('-', ' ')}
                     </Badge>
                   </div>
                   
@@ -412,26 +340,12 @@ const AdminDashboard = () => {
                       <Navigation className="w-3 h-3 mr-1" />
                       Navigate
                     </Button>
-                    {/* Hidden input for file selection */}
-                    <input
-                      ref={el => { fileInputsRef.current[issue.id] = el; }}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => onFileSelected(issue.id, e)}
-                    />
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => triggerUpload(issue.id)}>
+                    <Button variant="outline" size="sm" className="flex-1">
                       <Camera className="w-3 h-3 mr-1" />
                       Upload Photo
                     </Button>
-                    <Button
-                      variant={issue.status === 'resolved' ? 'default' : 'outline'}
-                      size="sm"
-                      className={issue.status === 'resolved' ? 'bg-green-600 hover:bg-green-600 text-white' : ''}
-                      onClick={() => openResolveModal(issue.id)}
-                    >
-                      {issue.status === 'resolved' ? 'Resolved' : 'Mark Resolved'}
+                    <Button variant="outline" size="sm">
+                      Mark Resolved
                     </Button>
                   </div>
                 </CardContent>
@@ -498,38 +412,6 @@ const AdminDashboard = () => {
         </div>
       </div>
     </Layout>
-
-    {/* Resolve Modal */}
-    {resolveModal.open && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div className="w-full max-w-md rounded-lg bg-card border p-4 space-y-4">
-          <div className="flex items-center space-x-2">
-            <ImageIcon className="w-5 h-5" />
-            <h3 className="font-semibold">Upload Resolution Photo</h3>
-          </div>
-          <p className="text-sm text-muted-foreground">A photo is required to mark the issue as resolved.</p>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setResolveFile(e.target.files?.[0] || null)}
-          />
-          <textarea
-            className="w-full p-2 border rounded-md bg-background"
-            placeholder="Optional note"
-            rows={3}
-            value={resolveNote}
-            onChange={(e) => setResolveNote(e.target.value)}
-          />
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setResolveModal({ open: false })}>Cancel</Button>
-            <Button disabled={!resolveFile || resolving} onClick={submitResolve}>
-              {resolving ? 'Submitting...' : 'Submit & Mark Resolved'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    )}
-    </>
   );
 };
 
