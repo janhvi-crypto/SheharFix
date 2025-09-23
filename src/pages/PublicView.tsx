@@ -32,9 +32,93 @@ const PublicView = () => {
   const [selectedImages, setSelectedImages] = useState<{ src: string; alt: string; title?: string }[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const { user, resolvedIssues: contextResolvedIssues } = useApp();
+  const [backendResolved, setBackendResolved] = useState<Array<{
+    id: string;
+    title: string;
+    description: string;
+    location: string;
+    ward?: string;
+    category: string;
+    reportedBy: string;
+    resolvedDate: string;
+    beforeImage: string;
+    afterImage: string;
+    status: 'resolved';
+    upvotes: number;
+    responseTime?: string;
+    completionDate?: string;
+    department?: string;
+    cost?: string;
+  }>>([]);
 
   useEffect(() => {
     setTimeout(() => setIsLoading(false), 2000);
+  }, []);
+
+  // Fetch resolved issues from backend so public view reflects actual admin actions
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/issues?status=resolved');
+        if (!res.ok) throw new Error('Failed to load resolved issues');
+        const rows = await res.json();
+        if (cancelled) return;
+        const mapped = rows.map((row: any) => ({
+          id: row._id,
+          title: row.title,
+          description: row.description || '',
+          location: row.location?.address || '',
+          ward: undefined,
+          category: (row.category || 'General').charAt(0).toUpperCase() + String(row.category || 'general').slice(1),
+          reportedBy: row.createdBy?.username || 'Citizen',
+          resolvedDate: row.resolvedAt ? new Date(row.resolvedAt).toISOString().split('T')[0] : (row.updatedAt || new Date().toISOString()),
+          beforeImage: row.mediaUrl || samplePothole,
+          afterImage: row.resolutionPhotoUrl || row.mediaUrl || samplePothole,
+          status: 'resolved' as const,
+          upvotes: 0,
+          responseTime: undefined,
+          completionDate: row.resolvedAt ? new Date(row.resolvedAt).toISOString().split('T')[0] : undefined,
+          department: undefined,
+          cost: row.resolutionNote || undefined,
+        }));
+        setBackendResolved(mapped);
+      } catch (e) {
+        setBackendResolved([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Lightweight polling to keep gallery updated every 30s
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch('/api/issues?status=resolved');
+        if (!res.ok) return;
+        const rows = await res.json();
+        const mapped = rows.map((row: any) => ({
+          id: row._id,
+          title: row.title,
+          description: row.description || '',
+          location: row.location?.address || '',
+          ward: undefined,
+          category: (row.category || 'General').charAt(0).toUpperCase() + String(row.category || 'general').slice(1),
+          reportedBy: row.createdBy?.username || 'Citizen',
+          resolvedDate: row.resolvedAt ? new Date(row.resolvedAt).toISOString().split('T')[0] : (row.updatedAt || new Date().toISOString()),
+          beforeImage: row.mediaUrl || samplePothole,
+          afterImage: row.resolutionPhotoUrl || row.mediaUrl || samplePothole,
+          status: 'resolved' as const,
+          upvotes: 0,
+          responseTime: undefined,
+          completionDate: row.resolvedAt ? new Date(row.resolvedAt).toISOString().split('T')[0] : undefined,
+          department: undefined,
+          cost: row.resolutionNote || undefined,
+        }));
+        setBackendResolved(mapped);
+      } catch {}
+    }, 30000);
+    return () => clearInterval(id);
   }, []);
 
   // Combine context resolved issues with static demo data
@@ -113,6 +197,18 @@ const PublicView = () => {
     }
   ];
 
+  // Build gallery images from backend resolved items first, then append static samples
+  const backendGallery = backendResolved.map((i) => ({
+    before: i.beforeImage,
+    after: i.afterImage,
+    title: i.title,
+    category: i.category,
+    location: i.location,
+    resolvedDate: i.resolvedDate,
+  }));
+
+  const beforeAfterGallery = [...backendGallery, ...staticBeforeAfterGallery];
+
   // Convert context issues to public view format and merge with static data
   const convertedContextIssues = contextResolvedIssues.map(issue => ({
     ...issue,
@@ -124,9 +220,9 @@ const PublicView = () => {
     department: issue.assignedTo
   }));
 
-  const resolvedIssues = [...convertedContextIssues, ...staticResolvedIssues];
+  const resolvedIssues = [...backendResolved, ...convertedContextIssues, ...staticResolvedIssues];
 
-  const beforeAfterGallery = [
+  const staticBeforeAfterGallery = [
     {
       before: beforePothole,
       after: afterPothole,

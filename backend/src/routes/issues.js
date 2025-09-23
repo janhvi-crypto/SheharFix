@@ -8,7 +8,12 @@ const router = Router();
 
 router.get('/', async (req, res) => {
   try {
-    const issues = await Issue.find().populate('createdBy', 'username avatarUrl').sort({ createdAt: -1 });
+    const { status } = req.query || {};
+    const query = {};
+    if (status && ['submitted','acknowledged','in_progress','resolved'].includes(String(status))) {
+      query.status = String(status);
+    }
+    const issues = await Issue.find(query).populate('createdBy', '_id username avatarUrl').sort({ createdAt: -1 });
     res.json(issues);
   } catch (e) {
     console.error('[issues]', e);
@@ -76,7 +81,7 @@ router.post('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const issue = await Issue.findById(req.params.id).populate('createdBy', 'username avatarUrl').populate('assignedNgos');
+    const issue = await Issue.findById(req.params.id).populate('createdBy', '_id username avatarUrl').populate('assignedNgos');
     if (!issue) return res.status(404).json({ error: 'issue not found' });
     res.json(issue);
   } catch (e) {

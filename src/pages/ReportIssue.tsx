@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+
 import { Camera, MapPin, Mic, Upload, Send, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,9 +12,11 @@ import Layout from '@/components/Layout';
 import LoadingScreen from '@/components/LoadingScreen';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useApp } from '@/contexts/AppContext';
 
 const ReportIssue = () => {
   const navigate = useNavigate();
+  const { token } = useApp();
   const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
     title: '',
@@ -23,6 +26,8 @@ const ReportIssue = () => {
     priority: '',
     anonymous: false
   });
+  const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isRecording, setIsRecording] = useState(false);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
@@ -165,6 +170,7 @@ const ReportIssue = () => {
           const { latitude, longitude } = position.coords;
           const mockAddress = `${latitude.toFixed(4)}, ${longitude.toFixed(4)} - Koramangala, Bangalore`;
           setFormData(prev => ({ ...prev, location: mockAddress }));
+          setGeo({ lat: latitude, lng: longitude });
           toast.success('Location added successfully');
         },
         () => {
@@ -176,27 +182,78 @@ const ReportIssue = () => {
     }
   };
 
+  const fileToBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Strip data URL prefix if present
+        const base64 = result.includes(',') ? result.split(',')[1] : result;
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) {
       toast.error('Please fill in all required fields');
       return;
     }
+    // Block submission if AI suggests a different category with enough confidence
+    if (categoryMismatch && mlPrediction && mlConfidence > 0.5) {
+      toast.error(`Category mismatch: AI suggests "${mlPrediction}". Please adjust the category or change the photo.`);
+      return;
+    }
     setIsSubmitting(true);
     try {
-      const reportData = {
-        ...formData,
-        images: selectedImages,
-        reportedBy: 'Current User' // Replace with actual user info
+      // Prepare payload expected by backend
+      const firstImage = selectedImages[0];
+      const media = firstImage ? await fileToBase64(firstImage) : undefined;
+
+      const payload: any = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        category: formData.category, // backend expects lowercase string
+        priority: formData.priority,
+        location: {
+          address: formData.location.trim() || undefined,
+          lat: geo?.lat,
+          lng: geo?.lng,
+        },
+        media,
       };
-      // Mock API call
-      console.log("Submitting report:", reportData);
-      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      // Only attach auth when not anonymous and token exists
+      const lsToken = localStorage.getItem('token');
+      const authToken = token || lsToken;
+      if (!formData.anonymous) {
+        if (!authToken) {
+          toast.error('Please login before submitting to enable ownership and deletion. Or check "Report anonymously".');
+          setIsSubmitting(false);
+          return;
+        }
+        (headers as any).Authorization = `Bearer ${authToken}`;
+      }
+
+      const resp = await fetch('/api/issues', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => '');
+        throw new Error(errText || 'Failed to submit report');
+      }
+      const created = await resp.json();
       toast.success('Issue reported successfully!');
+      // Navigate to dashboard or directly to the created issue page
       navigate('/dashboard');
     } catch (error) {
-      toast.error('Failed to submit report. Please try again.');
       console.error('Error submitting issue:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to submit report. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -296,6 +353,11 @@ const ReportIssue = () => {
                   </Select>
                   {errors.category && (
                     <p className="text-sm text-destructive">{errors.category}</p>
+                  )}
+                  {mlPrediction && mlConfidence > 0.5 && categoryMismatch && (
+                    <p className="text-sm text-destructive">
+                      AI suggests "{mlPrediction}" ({Math.round(mlConfidence * 100)}%). Please review your selection.
+                    </p>
                   )}
                 </div>
 
@@ -416,7 +478,7 @@ const ReportIssue = () => {
               <Button
                 type="submit"
                 className="w-full btn-citizen"
-                disabled={isSubmitting}
+                disabled={isSubmitting || (mlPrediction && mlConfidence > 0.5 && categoryMismatch)}
               >
                 {isSubmitting ? (
                   'Submitting Report...'

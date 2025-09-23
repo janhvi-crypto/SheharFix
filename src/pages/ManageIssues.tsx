@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Layout from '@/components/Layout';
+import toast from 'react-hot-toast';
 import LoadingScreen from '@/components/LoadingScreen';
 import AIIssueAnalyzer from '@/components/AIIssueAnalyzer';
 import IndiaMap from '@/components/IndiaMap';
@@ -29,13 +30,117 @@ const ManageIssues = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
-  const [selectedIssue, setSelectedIssue] = useState<number | null>(null);
+  const [selectedIssue, setSelectedIssue] = useState<string | null>(null);
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [viewerImages, setViewerImages] = useState<Array<{ src: string; alt: string; title?: string }>>([]);
+  const [backendResolved, setBackendResolved] = useState<Array<{
+    before: string;
+    after: string;
+    title: string;
+    category: string;
+    location: string;
+    resolvedDate: string;
+  }>>([]);
+
+  type UiIssue = {
+    id: string;
+    title: string;
+    description: string;
+    location: string;
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    category: string;
+    reportedBy: string;
+    reportedDate: string;
+    assignedTo?: string;
+    image: string;
+    afterImage?: string;
+    status: 'assigned' | 'in-progress' | 'resolved';
+    upvotes: number;
+    estimatedTime?: string;
+    riskFactors?: string[];
+    aiScore?: number;
+  };
+  const [liveIssues, setLiveIssues] = useState<UiIssue[]>([]);
+  const [resolvingIssue, setResolvingIssue] = useState<string | null>(null);
+  const [resolveModal, setResolveModal] = useState<{ open: boolean; issueId: string | null; file: File | null; note: string }>({ open: false, issueId: null, file: null, note: '' });
 
   useEffect(() => {
-    setTimeout(() => setIsLoading(false), 2000);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/issues');
+        if (!res.ok) throw new Error('Failed to load issues');
+        const rows = await res.json();
+        if (cancelled) return;
+        const mapped: UiIssue[] = rows.map((row: any) => ({
+          id: row._id,
+          title: row.title,
+          description: row.description || '',
+          location: row.location?.address || '',
+          priority: row.priority || 'medium',
+          category: (row.category || 'General'),
+          reportedBy: row.createdBy?.username || 'Citizen',
+          reportedDate: row.createdAt || new Date().toISOString(),
+          assignedTo: '',
+          image: row.mediaUrl || samplePothole,
+          afterImage: row.resolutionPhotoUrl || undefined,
+          status: mapStatus(row.status || 'submitted'),
+          upvotes: 0,
+          estimatedTime: '-',
+          riskFactors: ['Public Safety'],
+          aiScore: 90,
+        }));
+        // Unresolved first, then by newest date
+        const sorted = mapped.sort((a, b) => {
+          const ar = a.status === 'resolved' ? 1 : 0;
+          const br = b.status === 'resolved' ? 1 : 0;
+          if (ar !== br) return ar - br; // unresolved first
+          return new Date(b.reportedDate).getTime() - new Date(a.reportedDate).getTime();
+        });
+        setLiveIssues(sorted);
+      } catch (e) {
+        setLiveIssues([]);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
+
+  // Fetch resolved issues for Before/After gallery
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/issues?status=resolved');
+        if (!res.ok) throw new Error('Failed to load resolved');
+        const rows = await res.json();
+        if (cancelled) return;
+        const mapped = rows.map((row: any) => ({
+          before: row.mediaUrl || samplePothole,
+          after: row.resolutionPhotoUrl || row.mediaUrl || samplePothole,
+          title: row.title,
+          category: (row.category || 'General'),
+          location: row.location?.address || '',
+          resolvedDate: row.resolvedAt ? new Date(row.resolvedAt).toISOString().split('T')[0] : ''
+        }));
+        setBackendResolved(mapped);
+      } catch {
+        setBackendResolved([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  function mapStatus(s: string): 'assigned' | 'in-progress' | 'resolved' {
+    switch (s) {
+      case 'resolved': return 'resolved';
+      case 'in_progress': return 'in-progress';
+      case 'acknowledged': return 'assigned';
+      default: return 'assigned';
+    }
+  }
 
   const issues = [
     {
@@ -135,7 +240,19 @@ const ManageIssues = () => {
     }
   ];
 
-  const filteredIssues = issues.filter(issue => {
+  // Unresolved live issues appear in gallery with only "before" (after mirrors before)
+  const unresolvedGallery = (liveIssues.filter(i => i.status !== 'resolved')).map(i => ({
+    before: i.image,
+    after: i.image,
+    title: i.title,
+    category: i.category,
+    location: i.location,
+    resolvedDate: '',
+  }));
+
+  const galleryImages = [...backendResolved, ...unresolvedGallery, ...beforeAfterImages];
+
+  const filteredIssues = (liveIssues.length ? liveIssues : issues).filter(issue => {
     const matchesSearch = issue.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          issue.location.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || issue.status === statusFilter;
@@ -172,9 +289,95 @@ const ManageIssues = () => {
     }
   };
 
-  const openImageViewer = (index: number) => {
-    setCurrentImageIndex(index);
+  const openImageViewer = (images: Array<{ src: string; alt: string; title?: string }>, startIndex: number = 0) => {
+    setViewerImages(images);
+    setCurrentImageIndex(startIndex);
     setShowImageViewer(true);
+  };
+
+  const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.includes(',') ? result.split(',')[1] : result;
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const compressImage = (file: File, maxWidth = 1280, maxHeight = 1280, quality = 0.8): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const ratio = Math.min(maxWidth / img.width, maxHeight / img.height, 1);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { URL.revokeObjectURL(url); return resolve(file); }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(url);
+          if (!blob) return resolve(file);
+          resolve(new File([blob], file.name.replace(/\.(png|jpg|jpeg)$/i, '.jpg'), { type: 'image/jpeg' }));
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+      img.src = url;
+    });
+  };
+
+  const submitResolve = async () => {
+    if (!resolveModal.issueId || !resolveModal.file) {
+      toast.error('Resolution photo is required');
+      return;
+    }
+    const issueId = resolveModal.issueId;
+    setResolvingIssue(issueId);
+    try {
+      const compressed = await compressImage(resolveModal.file);
+      const media = await fileToBase64(compressed);
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const resp = await fetch(`/api/issues/${issueId}/resolve`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ media, note: resolveModal.note || undefined })
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        throw new Error(text || `HTTP ${resp.status}`);
+      }
+      await resp.json();
+      // Update UI locally
+      setLiveIssues(prev => prev.map(i => i.id === issueId ? { ...i, status: 'resolved', afterImage: `data:image/jpeg;base64,${media}` } : i));
+      // Also update Before/After gallery immediately
+      const resolvedItem = liveIssues.find(i => i.id === issueId);
+      if (resolvedItem) {
+        const beforeSrc = resolvedItem.image;
+        const afterSrc = `data:image/jpeg;base64,${media}`;
+        setBackendResolved(prev => [
+          {
+            before: beforeSrc,
+            after: afterSrc,
+            title: resolvedItem.title,
+            category: resolvedItem.category,
+            location: resolvedItem.location,
+            resolvedDate: new Date().toISOString().split('T')[0],
+          },
+          ...prev,
+        ]);
+      }
+      toast.success('Issue marked as resolved');
+      setResolveModal({ open: false, issueId: null, file: null, note: '' });
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to resolve');
+    } finally {
+      setResolvingIssue(null);
+    }
   };
 
   if (isLoading) {
@@ -182,6 +385,7 @@ const ManageIssues = () => {
   }
 
   return (
+    <>
     <Layout searchPlaceholder="Search issues, locations, or categories...">
       <div className="p-6 space-y-6">
         {/* Header */}
@@ -259,11 +463,11 @@ const ManageIssues = () => {
               <div className="lg:col-span-2 space-y-4">
                 {filteredIssues.map((issue) => (
                   <Card 
-                    key={issue.id} 
+                    key={String(issue.id)} 
                     className={`card-gradient cursor-pointer transition-all hover:shadow-lg ${
-                      selectedIssue === issue.id ? 'ring-2 ring-primary' : ''
+                      selectedIssue === String(issue.id) ? 'ring-2 ring-primary' : ''
                     }`}
-                    onClick={() => setSelectedIssue(selectedIssue === issue.id ? null : issue.id)}
+                    onClick={() => setSelectedIssue(selectedIssue === String(issue.id) ? null : String(issue.id))}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-3">
@@ -305,7 +509,14 @@ const ManageIssues = () => {
                             variant="ghost"
                             onClick={(e) => {
                               e.stopPropagation();
-                              openImageViewer(0);
+                              const hasAfter = typeof (issue as any).afterImage === 'string' && (issue as any).afterImage;
+                              const images: Array<{ src: string; alt: string; title?: string }> = hasAfter ? [
+                                { src: issue.image, alt: `Before - ${issue.title}`, title: `Before: ${issue.title}` },
+                                { src: (issue as any).afterImage as string, alt: `After - ${issue.title}`, title: `After: ${issue.title}` },
+                              ] : [
+                                { src: issue.image, alt: issue.title, title: issue.title },
+                              ];
+                              openImageViewer(images, 0);
                             }}
                           >
                             <Eye className="w-4 h-4" />
@@ -320,7 +531,14 @@ const ManageIssues = () => {
                           className="w-full h-32 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
                           onClick={(e) => {
                             e.stopPropagation();
-                            openImageViewer(0);
+                            const hasAfter = typeof (issue as any).afterImage === 'string' && (issue as any).afterImage;
+                            const images: Array<{ src: string; alt: string; title?: string }> = hasAfter ? [
+                              { src: issue.image, alt: `Before - ${issue.title}`, title: `Before: ${issue.title}` },
+                              { src: (issue as any).afterImage as string, alt: `After - ${issue.title}`, title: `After: ${issue.title}` },
+                            ] : [
+                              { src: issue.image, alt: issue.title, title: issue.title },
+                            ];
+                            openImageViewer(images, 0);
                           }}
                         />
                       </div>
@@ -344,9 +562,18 @@ const ManageIssues = () => {
                           <Camera className="w-3 h-3 mr-1" />
                           Upload Photo
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if (issue.status === 'resolved') return; 
+                            setResolveModal({ open: true, issueId: String(issue.id), file: null, note: '' }); 
+                          }}
+                          disabled={resolvingIssue === String(issue.id) || issue.status === 'resolved'}
+                        >
                           <CheckCircle className="w-3 h-3 mr-1" />
-                          Resolve
+                          {issue.status === 'resolved' ? 'Resolved' : (resolvingIssue === String(issue.id) ? 'Resolving...' : 'Resolve')}
                         </Button>
                       </div>
                     </CardContent>
@@ -498,7 +725,7 @@ const ManageIssues = () => {
                 </p>
               </CardHeader>
               <CardContent>
-                <BeforeAfterGallery images={beforeAfterImages} />
+                <BeforeAfterGallery images={galleryImages} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -508,13 +735,49 @@ const ManageIssues = () => {
         <ImageViewer
           isOpen={showImageViewer}
           onClose={() => setShowImageViewer(false)}
-          images={[
-            { src: samplePothole, alt: "Pothole on MG Road", title: "Issue Photo" }
-          ]}
+          images={viewerImages}
           currentIndex={currentImageIndex}
         />
       </div>
     </Layout>
+
+    {resolveModal.open && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/50" onClick={() => setResolveModal({ open: false, issueId: null, file: null, note: '' })} />
+        <div className="relative bg-card border rounded-lg shadow-lg w-full max-w-md p-4 mx-3">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold">Resolve Issue</h3>
+            <button className="p-1 rounded hover:bg-muted" onClick={() => setResolveModal({ open: false, issueId: null, file: null, note: '' })}>×</button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium">Resolution Photo (required)</label>
+              <input
+                type="file"
+                accept="image/*"
+                className="mt-1 block w-full text-sm"
+                onChange={(e) => setResolveModal(prev => ({ ...prev, file: e.target.files?.[0] || null }))}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Resolution Note (optional)</label>
+              <textarea
+                className="mt-1 w-full border rounded p-2 text-sm bg-background"
+                rows={3}
+                placeholder="Describe the fix..."
+                value={resolveModal.note}
+                onChange={(e) => setResolveModal(prev => ({ ...prev, note: e.target.value }))}
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setResolveModal({ open: false, issueId: null, file: null, note: '' })}>Cancel</Button>
+              <Button onClick={submitResolve} disabled={!!resolvingIssue}>Submit as Resolved</Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 
