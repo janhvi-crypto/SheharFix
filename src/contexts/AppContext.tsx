@@ -39,6 +39,7 @@ interface Issue {
 
 interface AppContextType {
   user: User | null;
+  token: string | null;
   language: Language;
   issues: Issue[];
   resolvedIssues: Issue[];
@@ -83,8 +84,8 @@ const translations = {
     profile: "Profile",
     transparency: "Transparency",
     publicView: "Public View",
-  logout: "Logout",
-  signOut: "Sign Out"
+    logout: "Logout",
+    signOut: "Sign Out"
   },
   hi: {
     chooseRole: "भूमिका चुनें",
@@ -113,8 +114,8 @@ const translations = {
     profile: "प्रोफ़ाइल",
     transparency: "पारदर्शिता",
     publicView: "सार्वजनिक दृश्य",
-  logout: "लॉगआउट",
-  signOut: "साइन आउट"
+    logout: "लॉगआउट",
+    signOut: "साइन आउट"
   },
   mr: {
     chooseRole: "भूमिका निवडा",
@@ -143,13 +144,14 @@ const translations = {
     profile: "प्रोफाइल",
     transparency: "पारदर्शकता",
     publicView: "सार्वजनिक दृश्य",
-  logout: "लॉगआउट",
-  signOut: "साइन आउट"
+    logout: "लॉगआउट",
+    signOut: "साइन आउट"
   }
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [language, setLanguage] = useState<Language>('en');
   const [isLoading, setIsLoading] = useState(true);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -157,13 +159,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [resolvedIssues, setResolvedIssues] = useState<Issue[]>([]);
 
   useEffect(() => {
-    // Load saved language and user from localStorage
+    // Load saved data from localStorage
     const savedLang = localStorage.getItem('sheharfix-language') as Language;
     const savedUser = localStorage.getItem('sheharfix-user');
+    const savedToken = localStorage.getItem('token');
     const savedResolvedIssues = localStorage.getItem('sheharfix-resolved-issues');
     
     if (savedLang) setLanguage(savedLang);
     if (savedUser) setUser(JSON.parse(savedUser));
+    if (savedToken) setToken(savedToken);
     if (savedResolvedIssues) setResolvedIssues(JSON.parse(savedResolvedIssues));
     
     // Initialize mock issues data
@@ -242,7 +246,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const login = async (email: string, password: string, role: UserRole): Promise<boolean> => {
-    // Mock authentication
+    // Try real backend auth first (uses username = email)
+    try {
+      let resp = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: email, password }),
+      });
+      if (!resp.ok) {
+        // Attempt auto-register (as citizen unless admin explicitly requested)
+        const registerRole = role === 'admin' ? 'admin' : 'citizen';
+        const reg = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: email, password, role: registerRole }),
+        });
+        // Ignore register failure silently and try login again anyway
+        resp = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: email, password }),
+        });
+      }
+      if (resp.ok) {
+        const data = await resp.json();
+        const backendUser: User = {
+          id: data.user?.id || data.user?._id || data.user?.username || email,
+          name: data.user?.username || email.split('@')[0],
+          email,
+          role: data.user?.role === 'admin' ? 'admin' : 'citizen',
+          avatar: data.user?.avatarUrl,
+        };
+        setUser(backendUser);
+        setToken(data.token || null);
+        localStorage.setItem('sheharfix-user', JSON.stringify(backendUser));
+        if (data.token) localStorage.setItem('token', data.token);
+        return true;
+      }
+    } catch {
+      // ignore and fallback to mock below
+    }
+
+    // Fallback: mock authentication
     if (email && password) {
       const mockUser: User = {
         id: Math.random().toString(36).substr(2, 9),
@@ -254,9 +299,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         level: role === 'citizen' ? 5 : undefined,
         badges: role === 'citizen' ? ['Street Guardian', 'Voice of Change'] : undefined
       };
-      
       setUser(mockUser);
       localStorage.setItem('sheharfix-user', JSON.stringify(mockUser));
+      // no real token in mock mode
       return true;
     }
     return false;
@@ -326,12 +371,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = () => {
     setUser(null);
+    setToken(null);
     localStorage.removeItem('sheharfix-user');
+    localStorage.removeItem('token');
   };
 
   return (
     <AppContext.Provider value={{
       user,
+      token,
       language,
       issues,
       resolvedIssues,
