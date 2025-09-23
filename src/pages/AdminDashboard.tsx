@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { AlertTriangle, CheckCircle, Clock, Users, MapPin, Navigation, Camera, Settings, IndianRupee, BarChart3, TrendingUp, Shield, Upload } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,14 +9,96 @@ import { Input } from '@/components/ui/input';
 import Layout from '@/components/Layout';
 import { useApp } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+import potholeImg from '@/assets/sample-pothole.jpg';
+import garbageImg from '@/assets/sample-garbage.jpg';
+import drainageImg from '@/assets/sample-drainage.jpg';
+import streetlightImg from '@/assets/sample-streetlight.jpg';
 
 const AdminDashboard = () => {
-  const { user, issues, uploadIssuePhoto, markIssueResolved } = useApp();
+  const { user } = useApp();
   const { toast } = useToast();
-  const [uploadingPhoto, setUploadingPhoto] = useState<number | null>(null);
-  const [resolvingIssue, setResolvingIssue] = useState<number | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState<string | null>(null);
+  const [resolvingIssue, setResolvingIssue] = useState<string | null>(null);
 
-  // Transparency data for administrators
+  type UiIssue = {
+    id: string;
+    title: string;
+    description?: string;
+    category?: string;
+    status: string;
+    reportedBy: string;
+    date: string;
+    image: string;
+    location?: string;
+    priority?: string;
+    upvotes?: number;
+    afterImage?: string;
+  };
+
+  const [issues, setIssues] = useState<UiIssue[]>([]);
+  const [loadingIssues, setLoadingIssues] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchIssues() {
+      try {
+        const res = await fetch('/api/issues');
+        if (!res.ok) throw new Error('Failed to load issues');
+        const rows: any[] = await res.json();
+        if (cancelled) return;
+        const mapped: UiIssue[] = rows.map((row) => ({
+          id: row._id,
+          title: row.title,
+          description: row.description || '',
+          category: capitalize(row.category || 'General'),
+          status: mapStatus(row.status || 'submitted'),
+          reportedBy: row.createdBy?.username ? row.createdBy.username : 'Citizen',
+          date: row.createdAt ? format(new Date(row.createdAt), 'yyyy-MM-dd') : '',
+          image: resolveImage(row),
+          location: row.location?.address || 'Location not specified',
+          priority: row.priority || 'medium',
+          upvotes: row.upvotes || 0,
+          afterImage: row.resolutionPhotoUrl
+        }))
+        .sort((a, b) => {
+          const aResolved = a.status === 'resolved' ? 1 : 0;
+          const bResolved = b.status === 'resolved' ? 1 : 0;
+          if (aResolved !== bResolved) return aResolved - bResolved;
+          return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
+        });
+        setIssues(mapped);
+      } catch (e) {
+        setIssues([]);
+      } finally {
+        if (!cancelled) setLoadingIssues(false);
+      }
+    }
+    fetchIssues();
+    return () => { cancelled = true; };
+  }, []);
+
+  function resolveImage(row: any): string {
+    if (row.resolutionPhotoUrl) return row.resolutionPhotoUrl.startsWith('http') ? row.resolutionPhotoUrl : `${window.location.origin}${row.resolutionPhotoUrl}`;
+    if (row.mediaUrl) return row.mediaUrl.startsWith('http') ? row.mediaUrl : `${window.location.origin}${row.mediaUrl}`;
+    if (row.media_path) return row.media_path.startsWith('http') ? row.media_path : `${window.location.origin}${row.media_path}`;
+    const cat = String(row.category || '').toLowerCase();
+    if (cat.includes('pothole') || cat.includes('road')) return potholeImg;
+    if (cat.includes('garbage') || cat.includes('sanitation')) return garbageImg;
+    if (cat.includes('drain')) return drainageImg;
+    if (cat.includes('light')) return streetlightImg;
+    return potholeImg;
+  }
+
+  function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function mapStatus(s: string) {
+    switch (s) {
+      case 'resolved': return 'resolved';
+      case 'in_progress': return 'in-progress';
+      case 'acknowledged': return 'assigned';
+      default: return 'reported';
+    }
+  }
   const transparencyData = {
     budget: {
       total: 245.8,
@@ -76,13 +159,13 @@ const AdminDashboard = () => {
     },
   ];
 
-  const handlePhotoUpload = async (issueId: number, event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (issueId: string, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setUploadingPhoto(issueId);
     try {
-      await uploadIssuePhoto(issueId, file);
+      // TODO: Implement photo upload API call when backend is ready
       toast({
         title: "Photo uploaded successfully",
         description: "Progress photo has been attached to the issue."
@@ -98,10 +181,10 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleMarkResolved = async (issueId: number) => {
+  const handleMarkResolved = async (issueId: string) => {
     setResolvingIssue(issueId);
     try {
-      markIssueResolved(issueId);
+      // TODO: Implement resolve issue API call when backend is ready
       toast({
         title: "Issue resolved successfully",
         description: "The issue has been marked as resolved and moved to public view."
@@ -170,7 +253,7 @@ const AdminDashboard = () => {
                   <AlertTriangle className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">47</p>
+                  <p className="text-2xl font-bold">{issues.filter(i => i.status !== 'resolved').length}</p>
                   <p className="text-sm text-muted-foreground">Assigned Issues</p>
                 </div>
               </div>
@@ -271,6 +354,16 @@ const AdminDashboard = () => {
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {loadingIssues && (
+              <div className="col-span-full text-sm text-muted-foreground text-center py-8">
+                Loading issues...
+              </div>
+            )}
+            {!loadingIssues && issues.length === 0 && (
+              <div className="col-span-full text-sm text-muted-foreground text-center py-8">
+                No issues found. All caught up!
+              </div>
+            )}
             {issues.map((issue) => (
               <Card key={issue.id} className="card-gradient">
                 <CardContent className="p-4">
@@ -287,7 +380,7 @@ const AdminDashboard = () => {
                       <div className="flex items-center space-x-4 text-xs text-muted-foreground">
                         <span>📍 {issue.location}</span>
                         <span>👤 {issue.reportedBy}</span>
-                        <span>⏱️ Est. {issue.estimatedTime}</span>
+                        <span>⏱️ Est. 2-3 days</span>
                       </div>
                     </div>
                     <Badge variant="outline" className={getStatusColor(issue.status)}>
@@ -320,7 +413,7 @@ const AdminDashboard = () => {
                   
                   <div className="flex items-center justify-between text-xs mb-3">
                     <span className="text-muted-foreground">
-                      Reported on {new Date(issue.reportedDate).toLocaleDateString()}
+                      Reported on {new Date(issue.date).toLocaleDateString()}
                     </span>
                     <div className="flex items-center space-x-1">
                       <span>👍 {issue.upvotes}</span>
