@@ -75,7 +75,18 @@ const AdminDashboard = () => {
       }
     }
     fetchIssues();
-    return () => { cancelled = true; };
+
+    // Refetch when window regains focus (user comes back from other page)
+    const handleFocus = () => {
+      fetchIssues();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => { 
+      cancelled = true; 
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   function resolveImage(row: any): string {
