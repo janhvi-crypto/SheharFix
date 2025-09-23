@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import Layout from '@/components/Layout';
 import { useApp } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
-import { apiService } from '@/services/api';
 
 const AdminDashboard = () => {
   const { user, issues, uploadIssuePhoto, markIssueResolved } = useApp();
@@ -83,15 +82,7 @@ const AdminDashboard = () => {
 
     setUploadingPhoto(issueId);
     try {
-      // Use API service to upload progress photo
-      await apiService.updateIssue({
-        issueId: issueId.toString(),
-        afterImage: file
-      });
-      
-      // Update local state through context
       await uploadIssuePhoto(issueId, file);
-      
       toast({
         title: "Photo uploaded successfully",
         description: "Progress photo has been attached to the issue."
@@ -110,12 +101,7 @@ const AdminDashboard = () => {
   const handleMarkResolved = async (issueId: number) => {
     setResolvingIssue(issueId);
     try {
-      // Use API service to resolve issue
-      await apiService.resolveIssue(issueId.toString(), undefined, '₹15,000');
-      
-      // Update local state through context
       markIssueResolved(issueId);
-      
       toast({
         title: "Issue resolved successfully",
         description: "The issue has been marked as resolved and moved to public view."
