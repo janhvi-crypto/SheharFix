@@ -31,15 +31,16 @@ const PublicView = () => {
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [selectedImages, setSelectedImages] = useState<{ src: string; alt: string; title?: string }[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const { user } = useApp();
+  const { user, resolvedIssues: contextResolvedIssues } = useApp();
 
   useEffect(() => {
     setTimeout(() => setIsLoading(false), 2000);
   }, []);
 
-  const resolvedIssues = [
+  // Combine context resolved issues with static demo data
+  const staticResolvedIssues = [
     {
-      id: 1,
+      id: 101,
       title: 'Pothole Repair on MG Road',
       description: 'Large pothole causing traffic issues near bus stop',
       location: 'MG Road, Koramangala',
@@ -49,7 +50,7 @@ const PublicView = () => {
       resolvedDate: '2024-01-15',
       beforeImage: beforePothole,
       afterImage: afterPothole,
-      status: 'resolved',
+      status: 'resolved' as const,
       upvotes: 23,
       responseTime: '3 days',
       completionDate: '2024-01-15',
@@ -57,7 +58,7 @@ const PublicView = () => {
       cost: '₹25,000'
     },
     {
-      id: 2,
+      id: 102,
       title: 'Garbage Collection Improved',
       description: 'Irregular garbage collection in residential area',
       location: 'Jayanagar 4th Block',
@@ -67,7 +68,7 @@ const PublicView = () => {
       resolvedDate: '2024-01-12',
       beforeImage: beforeGarbage,
       afterImage: afterGarbage,
-      status: 'resolved',
+      status: 'resolved' as const,
       upvotes: 18,
       responseTime: '2 days',
       completionDate: '2024-01-12',
@@ -75,7 +76,7 @@ const PublicView = () => {
       cost: '₹8,000'
     },
     {
-      id: 3,
+      id: 103,
       title: 'Drainage System Cleared',
       description: 'Blocked drainage causing waterlogging during rains',
       location: 'BTM Layout 2nd Stage',
@@ -85,7 +86,7 @@ const PublicView = () => {
       resolvedDate: '2024-01-10',
       beforeImage: sampleDrainage,
       afterImage: sampleDrainage,
-      status: 'resolved',
+      status: 'resolved' as const,
       upvotes: 31,
       responseTime: '5 days',
       completionDate: '2024-01-10',
@@ -93,7 +94,7 @@ const PublicView = () => {
       cost: '₹45,000'
     },
     {
-      id: 4,
+      id: 104,
       title: 'Street Light Installation',
       description: 'Dark street with no lighting causing safety concerns',
       location: 'Indiranagar 12th Main',
@@ -103,7 +104,7 @@ const PublicView = () => {
       resolvedDate: '2024-01-08',
       beforeImage: beforeStreetlight,
       afterImage: afterStreetlight,
-      status: 'resolved',
+      status: 'resolved' as const,
       upvotes: 27,
       responseTime: '4 days',
       completionDate: '2024-01-08',
@@ -111,6 +112,19 @@ const PublicView = () => {
       cost: '₹18,000'
     }
   ];
+
+  // Convert context issues to public view format and merge with static data
+  const convertedContextIssues = contextResolvedIssues.map(issue => ({
+    ...issue,
+    beforeImage: issue.image,
+    afterImage: issue.afterImage || issue.image,
+    ward: `Ward ${Math.floor(Math.random() * 200) + 100}`,
+    responseTime: issue.estimatedTime,
+    completionDate: issue.resolvedDate!,
+    department: issue.assignedTo
+  }));
+
+  const resolvedIssues = [...convertedContextIssues, ...staticResolvedIssues];
 
   const beforeAfterGallery = [
     {
