@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { MapPin, Clock, CheckCircle, AlertTriangle, Users, Eye, Search, Filter, Calendar, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,17 +23,18 @@ import beforeStreetlight from '@/assets/before-streetlight.jpg';
 import afterStreetlight from '@/assets/after-streetlight.jpg';
 
 const PublicView = () => {
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [selectedImages, setSelectedImages] = useState<{ src: string; alt: string; title?: string }[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [initialLoading, setInitialLoading] = useState(true);
   const { user, resolvedIssues: contextResolvedIssues } = useApp();
 
-  useEffect(() => {
-    setTimeout(() => setIsLoading(false), 2000);
+  React.useEffect(() => {
+    // Simulate initial loading
+    setTimeout(() => setInitialLoading(false), 1500);
   }, []);
 
   // Combine context resolved issues with static demo data
@@ -217,7 +217,7 @@ const PublicView = () => {
     { ward: 'Ward 174 - HSR Layout', issues: 25, resolved: 22, activeRate: 88.0 }
   ];
 
-  if (isLoading) {
+  if (initialLoading) {
     return <LoadingScreen />;
   }
 
