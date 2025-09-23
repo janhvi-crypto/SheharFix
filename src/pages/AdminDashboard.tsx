@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { AlertTriangle, CheckCircle, Clock, Users, MapPin, Navigation, Camera, Settings, IndianRupee, BarChart3, TrendingUp, Shield, Upload } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -82,7 +83,28 @@ const AdminDashboard = () => {
 
     setUploadingPhoto(issueId);
     try {
+      // Replace with actual API call to your backend
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('issueId', issueId.toString());
+
+      const response = await fetch('/api/issues/upload-progress-photo', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload photo');
+      }
+
+      const result = await response.json();
+      
+      // Update local state through context (temporary until real-time updates)
       await uploadIssuePhoto(issueId, file);
+      
       toast({
         title: "Photo uploaded successfully",
         description: "Progress photo has been attached to the issue."
@@ -101,7 +123,28 @@ const AdminDashboard = () => {
   const handleMarkResolved = async (issueId: number) => {
     setResolvingIssue(issueId);
     try {
+      // Replace with actual API call to your backend
+      const response = await fetch(`/api/issues/${issueId}/resolve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth-token')}`
+        },
+        body: JSON.stringify({
+          cost: '₹15,000', // You can make this dynamic
+          resolvedDate: new Date().toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to mark issue as resolved');
+      }
+
+      const resolvedIssue = await response.json();
+      
+      // Update local state through context (temporary until real-time updates)
       markIssueResolved(issueId);
+      
       toast({
         title: "Issue resolved successfully",
         description: "The issue has been marked as resolved and moved to public view."
