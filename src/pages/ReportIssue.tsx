@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Camera, MapPin, Mic, Upload, Send, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +12,7 @@ import Layout from '@/components/Layout';
 import LoadingScreen from '@/components/LoadingScreen';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { apiService } from '@/services/api';
 
 const ReportIssue = () => {
   const navigate = useNavigate();
@@ -27,40 +29,10 @@ const ReportIssue = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [mlPrediction, setMlPrediction] = useState<string | null>(null);
-  const [mlConfidence, setMlConfidence] = useState<number>(0);
-  const [categoryMismatch, setCategoryMismatch] = useState(false);
-  const mismatchToastedRef = useRef(false);
 
   useEffect(() => {
     setTimeout(() => setIsLoading(false), 2000);
   }, []);
-
-  // Auto-evaluate mismatch whenever prediction, confidence or selected category changes
-  useEffect(() => {
-    if (
-      mlPrediction &&
-      mlConfidence > 0.5 &&
-      formData.category &&
-      mlPrediction.toLowerCase() !== formData.category.toLowerCase()
-    ) {
-      setCategoryMismatch(true);
-    } else {
-      setCategoryMismatch(false);
-    }
-  }, [mlPrediction, mlConfidence, formData.category]);
-
-  // Notify when mismatch is detected
-  useEffect(() => {
-    if (categoryMismatch && mlPrediction) {
-      if (!mismatchToastedRef.current) {
-        toast.error(`Category Mismatch: AI suggests "${mlPrediction}". Please review.`);
-        mismatchToastedRef.current = true;
-      }
-    } else {
-      mismatchToastedRef.current = false;
-    }
-  }, [categoryMismatch, mlPrediction]);
 
   const categories = [
     'Potholes',
@@ -84,63 +56,50 @@ const ReportIssue = () => {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.title.trim()) newErrors.title = 'Title is required';
-    if (!formData.description.trim()) newErrors.description = 'Description is required';
-    if (!formData.category) newErrors.category = 'Category is required';
-    if (!formData.location.trim()) newErrors.location = 'Location is required';
-    if (!formData.priority) newErrors.priority = 'Priority level is required';
-    if (selectedImages.length === 0) newErrors.images = 'At least one image is required';
+
+    if (!formData.title.trim()) {
+      newErrors.title = 'Title is required';
+    }
+
+    if (!formData.description.trim()) {
+      newErrors.description = 'Description is required';
+    }
+
+    if (!formData.category) {
+      newErrors.category = 'Category is required';
+    }
+
+    if (!formData.location.trim()) {
+      newErrors.location = 'Location is required';
+    }
+
+    if (!formData.priority) {
+      newErrors.priority = 'Priority level is required';
+    }
+
+    if (selectedImages.length === 0) {
+      newErrors.images = 'At least one image is required';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    if (files.length === 0) return;
-
-    // Handle multiple files for UI
-    setSelectedImages(prev => [...prev, ...files].slice(0, 5)); // Max 5 images
-    if (errors.images) {
-      setErrors(prev => ({ ...prev, images: '' }));
-    }
-
-    // Use the first file for ML prediction
-    const fileForMl = files[0];
-    setMlPrediction(null);
-    setMlConfidence(0);
-    setCategoryMismatch(false);
-
-    // Call ML service for prediction
-    try {
-      const formDataImage = new FormData();
-      formDataImage.append('file', fileForMl);
-      const response = await fetch('/ml/predict', {
-        method: 'POST',
-        body: formDataImage,
-      });
-      if (!response.ok) {
-        const errText = await response.text().catch(() => '');
-        throw new Error(errText || 'Prediction request failed');
+    if (files.length > 0) {
+      setSelectedImages(prev => [...prev, ...files].slice(0, 5)); // Max 5 images
+      if (errors.images) {
+        setErrors(prev => ({ ...prev, images: '' }));
       }
-      const result = await response.json();
-      if (result?.prediction) {
-        setMlPrediction(result.prediction);
-        setMlConfidence(Number(result.confidence || 0));
-        const confPercent = Number(result.confidence || 0) * 100;
-        toast.success(
-          `AI suggests: ${result.prediction} (${confPercent.toFixed(1)}% confidence)`
-        );
-      }
-    } catch (err) {
-      console.error('ML Prediction failed:', err);
-      toast.error('Could not get AI category suggestion.');
     }
   };
 
@@ -150,6 +109,7 @@ const ReportIssue = () => {
 
   const startRecording = () => {
     setIsRecording(true);
+    // Mock voice recording - in real app would use Web Speech API
     setTimeout(() => {
       setIsRecording(false);
       const voiceText = "There is a large pothole on the main road causing traffic issues. It needs immediate attention.";
@@ -163,11 +123,12 @@ const ReportIssue = () => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
+          // Mock reverse geocoding
           const mockAddress = `${latitude.toFixed(4)}, ${longitude.toFixed(4)} - Koramangala, Bangalore`;
           setFormData(prev => ({ ...prev, location: mockAddress }));
           toast.success('Location added successfully');
         },
-        () => {
+        (error) => {
           toast.error('Unable to get location. Please enter manually.');
         }
       );
@@ -178,21 +139,30 @@ const ReportIssue = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!validateForm()) {
       toast.error('Please fill in all required fields');
       return;
     }
+
     setIsSubmitting(true);
+
     try {
+      // Use API service to report issue with ML validation
       const reportData = {
-        ...formData,
+        title: formData.title,
+        description: formData.description,
+        location: formData.location,
+        category: formData.category,
+        priority: formData.priority,
         images: selectedImages,
+        isAnonymous: formData.anonymous,
         reportedBy: 'Current User' // Replace with actual user info
       };
-      // Mock API call
-      console.log("Submitting report:", reportData);
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      toast.success('Issue reported successfully!');
+
+      await apiService.reportIssue(reportData);
+      
+      toast.success('Issue reported successfully! You will receive updates via notifications.');
       navigate('/dashboard');
     } catch (error) {
       toast.error('Failed to submit report. Please try again.');
@@ -218,6 +188,7 @@ const ReportIssue = () => {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard
           </Button>
+          
           <div>
             <h1 className="text-3xl font-bold text-foreground">Report New Issue</h1>
             <p className="text-muted-foreground mt-1">
@@ -372,6 +343,7 @@ const ReportIssue = () => {
                   </label>
                 </div>
 
+                {/* Selected Images Preview */}
                 {selectedImages.length > 0 && (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
                     {selectedImages.map((file, index) => (
