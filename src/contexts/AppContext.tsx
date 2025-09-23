@@ -17,13 +17,37 @@ interface User {
   bio?: string;
 }
 
+interface Issue {
+  id: number;
+  title: string;
+  description: string;
+  location: string;
+  priority: 'high' | 'medium' | 'low';
+  category: string;
+  reportedBy: string;
+  reportedDate: string;
+  assignedTo: string;
+  image: string;
+  status: 'assigned' | 'in-progress' | 'resolved';
+  upvotes: number;
+  estimatedTime: string;
+  afterImage?: string;
+  resolvedDate?: string;
+  department?: string;
+  cost?: string;
+}
+
 interface AppContextType {
   user: User | null;
   language: Language;
+  issues: Issue[];
+  resolvedIssues: Issue[];
   setLanguage: (lang: Language) => void;
   login: (email: string, password: string, role: UserRole) => Promise<boolean>;
   signup: (userData: { name: string; email: string; phone: string; role: UserRole }) => Promise<void>;
   logout: () => void;
+  uploadIssuePhoto: (issueId: number, photoFile: File) => Promise<string>;
+  markIssueResolved: (issueId: number, afterImage?: string, cost?: string) => void;
   isLoading: boolean;
   isNavigating: boolean;
   setIsNavigating: (loading: boolean) => void;
@@ -129,14 +153,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [language, setLanguage] = useState<Language>('en');
   const [isLoading, setIsLoading] = useState(true);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [resolvedIssues, setResolvedIssues] = useState<Issue[]>([]);
 
   useEffect(() => {
     // Load saved language and user from localStorage
     const savedLang = localStorage.getItem('sheharfix-language') as Language;
     const savedUser = localStorage.getItem('sheharfix-user');
+    const savedResolvedIssues = localStorage.getItem('sheharfix-resolved-issues');
     
     if (savedLang) setLanguage(savedLang);
     if (savedUser) setUser(JSON.parse(savedUser));
+    if (savedResolvedIssues) setResolvedIssues(JSON.parse(savedResolvedIssues));
+    
+    // Initialize mock issues data
+    const mockIssues: Issue[] = [
+      {
+        id: 1,
+        title: 'Large pothole on MG Road',
+        description: 'Deep pothole causing traffic congestion near bus stop',
+        location: 'MG Road, Koramangala',
+        priority: 'high',
+        category: 'Roads',
+        reportedBy: 'Arjun Mehta',
+        reportedDate: '2024-01-20',
+        assignedTo: 'Road Maintenance Team',
+        image: '/src/assets/sample-pothole.jpg',
+        status: 'in-progress',
+        upvotes: 15,
+        estimatedTime: '2 days'
+      },
+      {
+        id: 2,
+        title: 'Overflowing garbage bin',
+        description: 'Garbage bin overflowing for 3 days, creating hygiene issues',
+        location: 'Jayanagar 4th Block',
+        priority: 'medium',
+        category: 'Sanitation',
+        reportedBy: 'Priya Sharma',
+        reportedDate: '2024-01-19',
+        assignedTo: 'Sanitation Department',
+        image: '/src/assets/sample-garbage.jpg',
+        status: 'assigned',
+        upvotes: 8,
+        estimatedTime: '1 day'
+      },
+      {
+        id: 3,
+        title: 'Blocked drainage causing flooding',
+        description: 'Drainage system completely blocked after recent rains',
+        location: 'BTM Layout 2nd Stage',
+        priority: 'high',
+        category: 'Drainage',
+        reportedBy: 'Rajeev Kumar',
+        reportedDate: '2024-01-18',
+        assignedTo: 'Water Works Department',
+        image: '/src/assets/sample-drainage.jpg',
+        status: 'in-progress',
+        upvotes: 22,
+        estimatedTime: '3 days'
+      },
+      {
+        id: 4,
+        title: 'Street light not working',
+        description: 'Multiple street lights not functioning, safety concern',
+        location: 'Indiranagar 12th Main',
+        priority: 'medium',
+        category: 'Street Lighting',
+        reportedBy: 'Meera Iyer',
+        reportedDate: '2024-01-17',
+        assignedTo: 'Electrical Department',
+        image: '/src/assets/sample-streetlight.jpg',
+        status: 'assigned',
+        upvotes: 6,
+        estimatedTime: '1 day'
+      }
+    ];
+    
+    setIssues(mockIssues);
     
     // Simulate loading time
     setTimeout(() => setIsLoading(false), 2000);
@@ -185,6 +279,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('sheharfix-user', JSON.stringify(mockUser));
   };
 
+  const uploadIssuePhoto = async (issueId: number, photoFile: File): Promise<string> => {
+    // Mock photo upload - in real implementation, this would upload to your server
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const photoUrl = e.target?.result as string;
+        
+        // Update issue with uploaded photo
+        setIssues(prevIssues => 
+          prevIssues.map(issue => 
+            issue.id === issueId 
+              ? { ...issue, afterImage: photoUrl, status: 'in-progress' as const }
+              : issue
+          )
+        );
+        
+        resolve(photoUrl);
+      };
+      reader.readAsDataURL(photoFile);
+    });
+  };
+
+  const markIssueResolved = (issueId: number, afterImage?: string, cost?: string) => {
+    const issueToResolve = issues.find(issue => issue.id === issueId);
+    if (!issueToResolve) return;
+    
+    const resolvedIssue: Issue = {
+      ...issueToResolve,
+      status: 'resolved',
+      resolvedDate: new Date().toISOString().split('T')[0],
+      afterImage: afterImage || issueToResolve.afterImage || issueToResolve.image,
+      cost: cost || '₹15,000'
+    };
+    
+    // Add to resolved issues
+    const updatedResolvedIssues = [resolvedIssue, ...resolvedIssues];
+    setResolvedIssues(updatedResolvedIssues);
+    
+    // Remove from active issues
+    setIssues(prevIssues => prevIssues.filter(issue => issue.id !== issueId));
+    
+    // Save to localStorage
+    localStorage.setItem('sheharfix-resolved-issues', JSON.stringify(updatedResolvedIssues));
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem('sheharfix-user');
@@ -194,10 +333,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{
       user,
       language,
+      issues,
+      resolvedIssues,
       setLanguage: handleSetLanguage,
       login,
       signup,
       logout,
+      uploadIssuePhoto,
+      markIssueResolved,
       isLoading,
       isNavigating,
       setIsNavigating
