@@ -396,6 +396,15 @@ const AdminDashboard = () => {
                           src={issue.image} 
                           alt="Before resolution"
                           className="w-full h-24 object-cover rounded-lg"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            const cat = issue.category?.toLowerCase() || '';
+                            if (cat.includes('pothole') || cat.includes('road')) target.src = potholeImg;
+                            else if (cat.includes('garbage') || cat.includes('sanitation')) target.src = garbageImg;
+                            else if (cat.includes('drain')) target.src = drainageImg;
+                            else if (cat.includes('light')) target.src = streetlightImg;
+                            else target.src = potholeImg;
+                          }}
                         />
                       </div>
                       {issue.afterImage && (
@@ -405,6 +414,15 @@ const AdminDashboard = () => {
                             src={issue.afterImage} 
                             alt="After/Progress"
                             className="w-full h-24 object-cover rounded-lg"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              const cat = issue.category?.toLowerCase() || '';
+                              if (cat.includes('pothole') || cat.includes('road')) target.src = potholeImg;
+                              else if (cat.includes('garbage') || cat.includes('sanitation')) target.src = garbageImg;
+                              else if (cat.includes('drain')) target.src = drainageImg;
+                              else if (cat.includes('light')) target.src = streetlightImg;
+                              else target.src = potholeImg;
+                            }}
                           />
                         </div>
                       )}
