@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, TrendingUp, AlertCircle, CheckCircle, Clock, Users, BarChart3, Trophy } from 'lucide-react';
+import { Plus, TrendingUp, AlertCircle, CheckCircle, Clock, Users, BarChart3, Trophy, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,7 @@ import { format } from 'date-fns';
 
 const CitizenDashboard = () => {
   const navigate = useNavigate();
-  const { user } = useApp();
+  const { user, token } = useApp();
 
   const stats = [
     { title: 'Issues Reported', value: '12', change: '+2', icon: AlertCircle, color: 'text-blue-600' },
@@ -34,6 +34,7 @@ const CitizenDashboard = () => {
     date: string;
     image: string;
     location?: string;
+    createdById?: string;
   };
 
   const [recentIssues, setRecentIssues] = useState<UiIssue[]>([]);
@@ -57,6 +58,7 @@ const CitizenDashboard = () => {
           date: row.createdAt ? format(new Date(row.createdAt), 'yyyy-MM-dd') : '',
           image: resolveImage(row),
           location: row.location?.address,
+          createdById: row.createdBy?._id || row.createdBy?.id,
         }))
         .sort((a, b) => {
           const aResolved = a.status === 'resolved' ? 1 : 0;
@@ -75,6 +77,28 @@ const CitizenDashboard = () => {
     fetchIssues();
     return () => { cancelled = true; };
   }, []);
+
+  async function handleDeleteIssue(id: string) {
+    try {
+      const proceed = window.confirm('Delete this issue permanently?');
+      if (!proceed) return;
+      const lsToken = localStorage.getItem('token');
+      const resp = await fetch(`/api/issues/${id}`, {
+        method: 'DELETE',
+        headers: (token || lsToken) ? { Authorization: `Bearer ${token || lsToken}` } : undefined,
+      });
+      if (!resp.ok && resp.status !== 204) {
+        if (resp.status === 401 || resp.status === 403) {
+          throw new Error('Only the original reporter can delete this issue.');
+        }
+        throw new Error('Failed to delete issue');
+      }
+      // Optimistically update UI
+      setRecentIssues(prev => prev.filter(i => i.id !== id));
+    } catch (e: any) {
+      window.alert(e.message || 'Failed to delete issue');
+    }
+  }
 
   function resolveImage(row: any): string {
     if (row.resolutionPhotoUrl) return row.resolutionPhotoUrl;
@@ -302,6 +326,19 @@ const CitizenDashboard = () => {
                           </span>
                         </div>
                       </div>
+                      {(user && issue.createdById && user.id === issue.createdById && user.role !== 'admin') && (
+                        <div className="ml-4">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="h-7 px-2"
+                            title="Delete issue"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteIssue(issue.id); }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center justify-between mt-2">
                       <p className="text-xs text-muted-foreground">

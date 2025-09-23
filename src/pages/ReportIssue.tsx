@@ -1,4 +1,4 @@
-import React, { useState, useEffect, forwardRef } from 'react';
+import React, { useState, useEffect, forwardRef, useRef } from 'react';
 import { MapPin, Mic, Upload, Send, ArrowLeft } from 'lucide-react';
 import { Button as UIButton, ButtonProps } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,10 +38,37 @@ const ReportIssue = () => {
   const [mlPrediction, setMlPrediction] = useState<string | null>(null);
   const [mlConfidence, setMlConfidence] = useState<number>(0);
   const [categoryMismatch, setCategoryMismatch] = useState(false);
+  const mismatchToastedRef = useRef(false);
 
   useEffect(() => {
     setTimeout(() => setIsLoading(false), 1000);
   }, []);
+
+  // Auto-evaluate mismatch whenever prediction, confidence or selected category changes
+  useEffect(() => {
+    if (
+      mlPrediction &&
+      mlConfidence > 0.5 &&
+      formData.category &&
+      mlPrediction.toLowerCase() !== formData.category.toLowerCase()
+    ) {
+      setCategoryMismatch(true);
+    } else {
+      setCategoryMismatch(false);
+    }
+  }, [mlPrediction, mlConfidence, formData.category]);
+
+  // Notify when mismatch is detected (top red banner will also show)
+  useEffect(() => {
+    if (categoryMismatch && mlPrediction) {
+      if (!mismatchToastedRef.current) {
+        toast.error(`Category Mismatch: AI suggests "${mlPrediction}". Please review.`);
+        mismatchToastedRef.current = true;
+      }
+    } else {
+      mismatchToastedRef.current = false;
+    }
+  }, [categoryMismatch, mlPrediction]);
 
   const categories = ['pothole', 'garbage', 'streetlight', 'Drainage', 'Water Supply', 'Sanitation', 'Traffic Signals', 'Park Maintenance', 'Noise Pollution', 'Other'];
   const priorityLevels = [
@@ -107,6 +134,11 @@ const ReportIssue = () => {
       if (result?.prediction) {
         setMlPrediction(result.prediction);
         setMlConfidence(Number(result.confidence || 0));
+        // Notify user with an in-app toast about AI suggestion
+        const confPercent = Number(result.confidence || 0) * 100;
+        toast.success(
+          `AI suggests: ${result.prediction} (${confPercent.toFixed(1)}% confidence)`,
+        );
       }
     } catch (err) {
       console.error('ML error:', err);

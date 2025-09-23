@@ -16,6 +16,20 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Danger: Delete ALL issues (development only)
+router.delete('/', requireAuth, async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    await Issue.deleteMany({});
+    res.status(204).send();
+  } catch (e) {
+    console.error('[issues] delete all', e);
+    res.status(500).json({ error: 'failed to delete all issues' });
+  }
+});
+
 router.post('/', async (req, res) => {
   try {
     const { title, description, category, priority, location, media } = req.body;
@@ -129,8 +143,17 @@ router.patch('/:id/resolve', async (req, res) => {
 
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
-    const issue = await Issue.findByIdAndDelete(req.params.id);
+    const issue = await Issue.findById(req.params.id);
     if (!issue) return res.status(404).json({ error: 'issue not found' });
+    // Only the original reporter can delete; admins are not allowed
+    if (req.user?.role === 'admin') {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    const isOwner = issue.createdBy && String(issue.createdBy) === String(req.user.id);
+    if (!isOwner) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+    await Issue.findByIdAndDelete(req.params.id);
     res.status(204).send();
   } catch (e) {
     console.error('[issues]', e);
