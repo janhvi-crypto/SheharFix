@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { 
@@ -58,7 +59,6 @@ const Sidebar = () => {
 
   const communityItems = [
     { path: '/public-view', icon: Eye, label: t('publicView') },
-    { path: '/transparency', icon: Shield, label: t('transparency') },
     { path: '/ngo', icon: Heart, label: 'NGO Partners' },
   ];
 

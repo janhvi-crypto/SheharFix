@@ -77,6 +77,9 @@ const Profile: React.FC = () => {
     
     toast.success('Account deleted successfully');
     logout();
+    
+    // Redirect to role selection page
+    window.location.href = '/';
   };
 
   const handleInputChange = (field: string, value: string) => {
