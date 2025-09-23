@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Plus, TrendingUp, AlertCircle, CheckCircle, Clock, Users, BarChart3, Trophy, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +15,7 @@ import { format } from 'date-fns';
 
 const CitizenDashboard = () => {
   const navigate = useNavigate();
-  const { user, token } = useApp();
+  const { user } = useApp();
 
   const stats = [
     { title: 'Issues Reported', value: '12', change: '+2', icon: AlertCircle, color: 'text-blue-600' },
@@ -86,7 +85,7 @@ const CitizenDashboard = () => {
       const lsToken = localStorage.getItem('token');
       const resp = await fetch(`/api/issues/${id}`, {
         method: 'DELETE',
-        headers: (token || lsToken) ? { Authorization: `Bearer ${token || lsToken}` } : undefined,
+        headers: lsToken ? { Authorization: `Bearer ${lsToken}` } : undefined,
       });
       if (!resp.ok && resp.status !== 204) {
         if (resp.status === 401 || resp.status === 403) {
@@ -102,9 +101,33 @@ const CitizenDashboard = () => {
   }
 
   function resolveImage(row: any): string {
-    if (row.resolutionPhotoUrl) return row.resolutionPhotoUrl;
-    if (row.mediaUrl) return row.mediaUrl; // Cloudinary or local fallback URL from Mongo backend
-    if (row.media_path) return row.media_path; // compatibility with SQLite server
+    // First check for resolution photo
+    if (row.resolutionPhotoUrl) {
+      // If it's a relative path, prefix with API base URL
+      if (row.resolutionPhotoUrl.startsWith('/')) {
+        return `${window.location.origin}${row.resolutionPhotoUrl}`;
+      }
+      return row.resolutionPhotoUrl;
+    }
+    
+    // Check for media URL
+    if (row.mediaUrl) {
+      // If it's a relative path, prefix with API base URL  
+      if (row.mediaUrl.startsWith('/')) {
+        return `${window.location.origin}${row.mediaUrl}`;
+      }
+      return row.mediaUrl;
+    }
+    
+    // Check for media path (SQLite compatibility)
+    if (row.media_path) {
+      if (row.media_path.startsWith('/')) {
+        return `${window.location.origin}${row.media_path}`;
+      }
+      return row.media_path;
+    }
+    
+    // Fallback to category-based images
     const cat = String(row.category || '').toLowerCase();
     if (cat.includes('pothole') || cat.includes('road')) return potholeImg;
     if (cat.includes('garbage') || cat.includes('sanitation')) return garbageImg;
@@ -277,7 +300,7 @@ const CitizenDashboard = () => {
                 <span className="font-bold">180</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm">Community Rank</span>
+                <span className="text-span">Community Rank</span>
                 <span className="font-bold">#3</span>
               </div>
             </CardContent>
@@ -310,6 +333,22 @@ const CitizenDashboard = () => {
                     src={issue.image}
                     alt={issue.title}
                     className="w-full sm:w-24 h-24 object-cover rounded-lg"
+                    onError={(e) => {
+                      // If image fails to load, use fallback based on category
+                      const target = e.target as HTMLImageElement;
+                      const cat = issue.category?.toLowerCase() || '';
+                      if (cat.includes('pothole') || cat.includes('road')) {
+                        target.src = potholeImg;
+                      } else if (cat.includes('garbage') || cat.includes('sanitation')) {
+                        target.src = garbageImg;
+                      } else if (cat.includes('drain')) {
+                        target.src = drainageImg;
+                      } else if (cat.includes('light')) {
+                        target.src = streetlightImg;
+                      } else {
+                        target.src = potholeImg;
+                      }
+                    }}
                   />
                   <div className="flex-1">
                     <div className="flex items-start justify-between">
