@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Camera, MapPin, Mic, Upload, Send, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,32 +10,58 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import Layout from '@/components/Layout';
 import LoadingScreen from '@/components/LoadingScreen';
-import { useApp } from '@/contexts/AppContext';
-import { Camera, MapPin, Mic, Upload, ArrowLeft, AlertCircle, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 const ReportIssue = () => {
-  const { user, uploadIssuePhoto } = useApp();
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    location: '',
     category: '',
+    location: '',
     priority: '',
-    images: [] as File[],
-    isAnonymous: false,
-    reportedBy: user?.name || 'Anonymous'
+    anonymous: false
   });
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isRecording, setIsRecording] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [mlPrediction, setMlPrediction] = useState<string | null>(null);
+  const [mlConfidence, setMlConfidence] = useState<number>(0);
+  const [categoryMismatch, setCategoryMismatch] = useState(false);
+  const mismatchToastedRef = useRef(false);
 
-  React.useEffect(() => {
-    // Simulate initial loading
-    setTimeout(() => setInitialLoading(false), 1500);
+  useEffect(() => {
+    setTimeout(() => setIsLoading(false), 2000);
   }, []);
+
+  // Auto-evaluate mismatch whenever prediction, confidence or selected category changes
+  useEffect(() => {
+    if (
+      mlPrediction &&
+      mlConfidence > 0.5 &&
+      formData.category &&
+      mlPrediction.toLowerCase() !== formData.category.toLowerCase()
+    ) {
+      setCategoryMismatch(true);
+    } else {
+      setCategoryMismatch(false);
+    }
+  }, [mlPrediction, mlConfidence, formData.category]);
+
+  // Notify when mismatch is detected
+  useEffect(() => {
+    if (categoryMismatch && mlPrediction) {
+      if (!mismatchToastedRef.current) {
+        toast.error(`Category Mismatch: AI suggests "${mlPrediction}". Please review.`);
+        mismatchToastedRef.current = true;
+      }
+    } else {
+      mismatchToastedRef.current = false;
+    }
+  }, [categoryMismatch, mlPrediction]);
 
   const categories = [
     'Potholes',
@@ -56,70 +84,78 @@ const ReportIssue = () => {
   ];
 
   const validateForm = () => {
-    const errors: Record<string, string> = {};
-
-    if (!formData.title.trim()) {
-      errors.title = 'Title is required';
-    }
-
-    if (!formData.description.trim()) {
-      errors.description = 'Description is required';
-    }
-
-    if (!formData.category) {
-      errors.category = 'Category is required';
-    }
-
-    if (!formData.location.trim()) {
-      errors.location = 'Location is required';
-    }
-
-    if (!formData.priority) {
-      errors.priority = 'Priority level is required';
-    }
-
-    if (formData.images.length === 0) {
-      errors.images = 'At least one image is required';
-    }
-
-    return errors;
+    const newErrors: Record<string, string> = {};
+    if (!formData.title.trim()) newErrors.title = 'Title is required';
+    if (!formData.description.trim()) newErrors.description = 'Description is required';
+    if (!formData.category) newErrors.category = 'Category is required';
+    if (!formData.location.trim()) newErrors.location = 'Location is required';
+    if (!formData.priority) newErrors.priority = 'Priority level is required';
+    if (selectedImages.length === 0) newErrors.images = 'At least one image is required';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear validation error when user starts typing
-    if (validationErrors[field]) {
-      setValidationErrors(prev => ({ ...prev, [field]: '' }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    if (files.length > 0) {
-      setFormData(prev => ({ 
-        ...prev, 
-        images: [...prev.images, ...files].slice(0, 5) // Max 5 images
-      }));
-      if (validationErrors.images) {
-        setValidationErrors(prev => ({ ...prev, images: '' }));
+    if (files.length === 0) return;
+
+    // Handle multiple files for UI
+    setSelectedImages(prev => [...prev, ...files].slice(0, 5)); // Max 5 images
+    if (errors.images) {
+      setErrors(prev => ({ ...prev, images: '' }));
+    }
+
+    // Use the first file for ML prediction
+    const fileForMl = files[0];
+    setMlPrediction(null);
+    setMlConfidence(0);
+    setCategoryMismatch(false);
+
+    // Call ML service for prediction
+    try {
+      const formDataImage = new FormData();
+      formDataImage.append('file', fileForMl);
+      const response = await fetch('/ml/predict', {
+        method: 'POST',
+        body: formDataImage,
+      });
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(errText || 'Prediction request failed');
       }
+      const result = await response.json();
+      if (result?.prediction) {
+        setMlPrediction(result.prediction);
+        setMlConfidence(Number(result.confidence || 0));
+        const confPercent = Number(result.confidence || 0) * 100;
+        toast.success(
+          `AI suggests: ${result.prediction} (${confPercent.toFixed(1)}% confidence)`
+        );
+      }
+    } catch (err) {
+      console.error('ML Prediction failed:', err);
+      toast.error('Could not get AI category suggestion.');
     }
   };
 
   const removeImage = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      images: prev.images.filter((_, i) => i !== index)
-    }));
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const startRecording = () => {
     setIsRecording(true);
-    // Mock voice recording - in real app would use Web Speech API
     setTimeout(() => {
       setIsRecording(false);
       const voiceText = "There is a large pothole on the main road causing traffic issues. It needs immediate attention.";
       setFormData(prev => ({ ...prev, description: voiceText }));
+      toast.success('Voice recording added to description');
     }, 3000);
   };
 
@@ -128,66 +164,46 @@ const ReportIssue = () => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          // Mock reverse geocoding
           const mockAddress = `${latitude.toFixed(4)}, ${longitude.toFixed(4)} - Koramangala, Bangalore`;
           setFormData(prev => ({ ...prev, location: mockAddress }));
+          toast.success('Location added successfully');
         },
-        (error) => {
-          console.error('Unable to get location:', error);
+        () => {
+          toast.error('Unable to get location. Please enter manually.');
         }
       );
+    } else {
+      toast.error('Geolocation is not supported by this browser.');
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const errors = validateForm();
-    if (Object.keys(errors).length > 0) {
-      setValidationErrors(errors);
+    if (!validateForm()) {
+      toast.error('Please fill in all required fields');
       return;
     }
-
     setIsSubmitting(true);
     try {
-      // For now, just upload the first image and create a mock issue
-      // In your backend integration, you'll handle multiple images
-      if (formData.images.length > 0) {
-        await uploadIssuePhoto(Date.now(), formData.images[0]);
-      }
-      
-      // Create a simple success feedback
-      console.log('Issue submitted:', {
-        title: formData.title,
-        description: formData.description,
-        location: formData.location,
-        category: formData.category,
-        priority: formData.priority,
-        isAnonymous: formData.isAnonymous,
-        reportedBy: formData.reportedBy
-      });
-      
-      // Reset form after successful submission
-      setFormData({
-        title: '',
-        description: '',
-        location: '',
-        category: '',
-        priority: '',
-        images: [],
-        isAnonymous: false,
-        reportedBy: user?.name || 'Anonymous'
-      });
-      
+      const reportData = {
+        ...formData,
+        images: selectedImages,
+        reportedBy: 'Current User' // Replace with actual user info
+      };
+      // Mock API call
+      console.log("Submitting report:", reportData);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      toast.success('Issue reported successfully!');
       navigate('/dashboard');
     } catch (error) {
-      console.error('Failed to submit report:', error);
+      toast.error('Failed to submit report. Please try again.');
+      console.error('Error submitting issue:', error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (initialLoading) {
+  if (isLoading) {
     return <LoadingScreen />;
   }
 
@@ -203,7 +219,6 @@ const ReportIssue = () => {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard
           </Button>
-          
           <div>
             <h1 className="text-3xl font-bold text-foreground">Report New Issue</h1>
             <p className="text-muted-foreground mt-1">
@@ -226,10 +241,10 @@ const ReportIssue = () => {
                   placeholder="e.g., Pothole on MG Road"
                   value={formData.title}
                   onChange={(e) => handleInputChange('title', e.target.value)}
-                  className={validationErrors.title ? 'border-destructive' : ''}
+                  className={errors.title ? 'border-destructive' : ''}
                 />
-                {validationErrors.title && (
-                  <p className="text-sm text-destructive">{validationErrors.title}</p>
+                {errors.title && (
+                  <p className="text-sm text-destructive">{errors.title}</p>
                 )}
               </div>
 
@@ -254,10 +269,10 @@ const ReportIssue = () => {
                   placeholder="Describe the issue in detail..."
                   value={formData.description}
                   onChange={(e) => handleInputChange('description', e.target.value)}
-                  className={`min-h-[100px] ${validationErrors.description ? 'border-destructive' : ''}`}
+                  className={`min-h-[100px] ${errors.description ? 'border-destructive' : ''}`}
                 />
-                {validationErrors.description && (
-                  <p className="text-sm text-destructive">{validationErrors.description}</p>
+                {errors.description && (
+                  <p className="text-sm text-destructive">{errors.description}</p>
                 )}
               </div>
 
@@ -269,7 +284,7 @@ const ReportIssue = () => {
                     value={formData.category}
                     onValueChange={(value) => handleInputChange('category', value)}
                   >
-                    <SelectTrigger className={validationErrors.category ? 'border-destructive' : ''}>
+                    <SelectTrigger className={errors.category ? 'border-destructive' : ''}>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
@@ -280,8 +295,8 @@ const ReportIssue = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                  {validationErrors.category && (
-                    <p className="text-sm text-destructive">{validationErrors.category}</p>
+                  {errors.category && (
+                    <p className="text-sm text-destructive">{errors.category}</p>
                   )}
                 </div>
 
@@ -291,7 +306,7 @@ const ReportIssue = () => {
                     value={formData.priority}
                     onValueChange={(value) => handleInputChange('priority', value)}
                   >
-                    <SelectTrigger className={validationErrors.priority ? 'border-destructive' : ''}>
+                    <SelectTrigger className={errors.priority ? 'border-destructive' : ''}>
                       <SelectValue placeholder="Select priority" />
                     </SelectTrigger>
                     <SelectContent>
@@ -302,8 +317,8 @@ const ReportIssue = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                  {validationErrors.priority && (
-                    <p className="text-sm text-destructive">{validationErrors.priority}</p>
+                  {errors.priority && (
+                    <p className="text-sm text-destructive">{errors.priority}</p>
                   )}
                 </div>
               </div>
@@ -328,10 +343,10 @@ const ReportIssue = () => {
                   placeholder="Enter the exact location"
                   value={formData.location}
                   onChange={(e) => handleInputChange('location', e.target.value)}
-                  className={validationErrors.location ? 'border-destructive' : ''}
+                  className={errors.location ? 'border-destructive' : ''}
                 />
-                {validationErrors.location && (
-                  <p className="text-sm text-destructive">{validationErrors.location}</p>
+                {errors.location && (
+                  <p className="text-sm text-destructive">{errors.location}</p>
                 )}
               </div>
 
@@ -358,10 +373,9 @@ const ReportIssue = () => {
                   </label>
                 </div>
 
-                {/* Selected Images Preview */}
-                {formData.images.length > 0 && (
+                {selectedImages.length > 0 && (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-                    {formData.images.map((file, index) => (
+                    {selectedImages.map((file, index) => (
                       <div key={index} className="relative">
                         <img
                           src={URL.createObjectURL(file)}
@@ -382,8 +396,8 @@ const ReportIssue = () => {
                   </div>
                 )}
 
-                {validationErrors.images && (
-                  <p className="text-sm text-destructive">{validationErrors.images}</p>
+                {errors.images && (
+                  <p className="text-sm text-destructive">{errors.images}</p>
                 )}
               </div>
 
@@ -391,8 +405,8 @@ const ReportIssue = () => {
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="anonymous"
-                  checked={formData.isAnonymous}
-                  onCheckedChange={(checked) => handleInputChange('isAnonymous', checked as boolean)}
+                  checked={formData.anonymous}
+                  onCheckedChange={(checked) => handleInputChange('anonymous', checked as boolean)}
                 />
                 <Label htmlFor="anonymous" className="text-sm">
                   Report anonymously (your identity will be hidden)
