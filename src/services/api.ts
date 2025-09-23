@@ -1,7 +1,7 @@
 // API Service Layer for Backend Integration
 // Replace these endpoints with your actual backend API URLs
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api';
 
 export interface ApiIssue {
   id: string;
