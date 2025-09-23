@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { Plus, TrendingUp, AlertCircle, CheckCircle, Clock, Users, BarChart3, Trophy, Trash2 } from 'lucide-react';
+
+import React from 'react';
+import { Plus, TrendingUp, AlertCircle, CheckCircle, Clock, Users, BarChart3, Trophy } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,11 +12,10 @@ import potholeImg from '@/assets/sample-pothole.jpg';
 import garbageImg from '@/assets/sample-garbage.jpg';
 import drainageImg from '@/assets/sample-drainage.jpg';
 import streetlightImg from '@/assets/sample-streetlight.jpg';
-import { format } from 'date-fns';
 
 const CitizenDashboard = () => {
   const navigate = useNavigate();
-  const { user, token } = useApp();
+  const { user, issues } = useApp();
 
   const stats = [
     { title: 'Issues Reported', value: '12', change: '+2', icon: AlertCircle, color: 'text-blue-600' },
@@ -24,108 +24,50 @@ const CitizenDashboard = () => {
     { title: 'Community Impact', value: '1,247', change: '+89', icon: Users, color: 'text-purple-600' },
   ];
 
-  type UiIssue = {
-    id: string; // Mongo _id
-    title: string;
-    description?: string;
-    category?: string;
-    status: string;
-    reportedBy: string;
-    date: string;
-    image: string;
-    location?: string;
-    createdById?: string;
-  };
+  // Use actual issues from context combined with static data
+  const contextIssuesForDisplay = issues.slice(0, 2).map(issue => ({
+    id: issue.id,
+    title: issue.title,
+    description: issue.description,
+    category: issue.category,
+    status: issue.status,
+    reportedBy: issue.reportedBy,
+    date: issue.reportedDate,
+    image: issue.image,
+    location: issue.location
+  }));
 
-  const [recentIssues, setRecentIssues] = useState<UiIssue[]>([]);
-  const [loadingIssues, setLoadingIssues] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchIssues() {
-      try {
-        const res = await fetch('/api/issues');
-        if (!res.ok) throw new Error('Failed to load issues');
-        const rows: any[] = await res.json();
-        if (cancelled) return;
-        const mapped: UiIssue[] = rows.map((row) => ({
-          id: row._id,
-          title: row.title,
-          description: row.description || '',
-          category: capitalize(row.category || 'General'),
-          status: mapStatus(row.status || 'submitted'),
-          reportedBy: row.createdBy?.username ? row.createdBy.username : 'Citizen',
-          date: row.createdAt ? format(new Date(row.createdAt), 'yyyy-MM-dd') : '',
-          image: resolveImage(row),
-          location: row.location?.address,
-          createdById: row.createdBy?._id || row.createdBy?.id,
-        }))
-        .sort((a, b) => {
-          const aResolved = a.status === 'resolved' ? 1 : 0;
-          const bResolved = b.status === 'resolved' ? 1 : 0;
-          if (aResolved !== bResolved) return aResolved - bResolved; // unresolved first
-          return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
-        });
-        setRecentIssues(mapped);
-      } catch (e) {
-        // On error, keep empty list silently for now
-        setRecentIssues([]);
-      } finally {
-        if (!cancelled) setLoadingIssues(false);
-      }
+  const staticIssues = [
+    {
+      id: 1001,
+      title: 'Blocked drainage system',
+      description: 'Water logging during rains due to blocked drainage on residential street.',
+      category: 'Drainage',
+      status: 'acknowledged',
+      reportedBy: 'Amit Patel',
+      date: '2024-01-13',
+      image: drainageImg,
+      location: 'Koramangala, Bangalore'
+    },
+    {
+      id: 1002,
+      title: 'Street light not working',
+      description: 'Multiple street lights are not functioning, making the area unsafe during nighttime.',
+      category: 'Lighting',
+      status: 'reported',
+      reportedBy: 'Sunita Devi',
+      date: '2024-01-12',
+      image: streetlightImg,
+      location: 'Jayanagar, Bangalore'
     }
-    fetchIssues();
-    return () => { cancelled = true; };
-  }, []);
+  ];
 
-  async function handleDeleteIssue(id: string) {
-    try {
-      const proceed = window.confirm('Delete this issue permanently?');
-      if (!proceed) return;
-      const lsToken = localStorage.getItem('token');
-      const resp = await fetch(`/api/issues/${id}`, {
-        method: 'DELETE',
-        headers: (token || lsToken) ? { Authorization: `Bearer ${token || lsToken}` } : undefined,
-      });
-      if (!resp.ok && resp.status !== 204) {
-        if (resp.status === 401 || resp.status === 403) {
-          throw new Error('Only the original reporter can delete this issue.');
-        }
-        throw new Error('Failed to delete issue');
-      }
-      // Optimistically update UI
-      setRecentIssues(prev => prev.filter(i => i.id !== id));
-    } catch (e: any) {
-      window.alert(e.message || 'Failed to delete issue');
-    }
-  }
-
-  function resolveImage(row: any): string {
-    if (row.resolutionPhotoUrl) return row.resolutionPhotoUrl;
-    if (row.mediaUrl) return row.mediaUrl; // Cloudinary or local fallback URL from Mongo backend
-    if (row.media_path) return row.media_path; // compatibility with SQLite server
-    const cat = String(row.category || '').toLowerCase();
-    if (cat.includes('pothole') || cat.includes('road')) return potholeImg;
-    if (cat.includes('garbage') || cat.includes('sanitation')) return garbageImg;
-    if (cat.includes('drain')) return drainageImg;
-    if (cat.includes('light')) return streetlightImg;
-    return potholeImg;
-  }
-
-  function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
-  function mapStatus(s: string) {
-    switch (s) {
-      case 'resolved': return 'resolved';
-      case 'in_progress': return 'in_progress';
-      case 'acknowledged': return 'acknowledged';
-      default: return 'reported';
-    }
-  }
+  const recentIssues = [...contextIssuesForDisplay, ...staticIssues].slice(0, 4);
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'resolved': return 'status-resolved';
-      case 'in_progress': return 'status-progress';
+      case 'progress': return 'status-progress';
       case 'acknowledged': return 'status-acknowledged';
       default: return 'status-reported';
     }
@@ -134,7 +76,7 @@ const CitizenDashboard = () => {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'resolved': return 'Resolved';
-      case 'in_progress': return 'In Progress';
+      case 'progress': return 'In Progress';
       case 'acknowledged': return 'Acknowledged';
       default: return 'Reported';
     }
@@ -293,12 +235,6 @@ const CitizenDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {loadingIssues && (
-                <div className="text-sm text-muted-foreground">Loading latest issues…</div>
-              )}
-              {!loadingIssues && recentIssues.length === 0 && (
-                <div className="text-sm text-muted-foreground">No issues reported yet. Be the first to report!</div>
-              )}
               {recentIssues.map((issue) => (
                 <div
                   key={issue.id}
@@ -326,23 +262,10 @@ const CitizenDashboard = () => {
                           </span>
                         </div>
                       </div>
-                      {(user && issue.createdById && user.id === issue.createdById && user.role !== 'admin') && (
-                        <div className="ml-4">
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            className="h-7 px-2"
-                            title="Delete issue"
-                            onClick={(e) => { e.stopPropagation(); handleDeleteIssue(issue.id); }}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      )}
                     </div>
                     <div className="flex items-center justify-between mt-2">
                       <p className="text-xs text-muted-foreground">
-                        By {issue.reportedBy}{issue.location ? ` • ${issue.location}` : ''}
+                        By {issue.reportedBy} • {issue.location}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {issue.date}
