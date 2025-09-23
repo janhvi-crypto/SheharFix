@@ -1,19 +1,19 @@
-
-import React from 'react';
-import { AlertTriangle, CheckCircle, Clock, Users, MapPin, Navigation, Camera, Settings, IndianRupee, BarChart3, TrendingUp, Shield } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, CheckCircle, Clock, Users, MapPin, Navigation, Camera, Settings, IndianRupee, BarChart3, TrendingUp, Shield, Upload } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import Layout from '@/components/Layout';
 import { useApp } from '@/contexts/AppContext';
-import samplePothole from '@/assets/sample-pothole.jpg';
-import sampleGarbage from '@/assets/sample-garbage.jpg';
-import sampleDrainage from '@/assets/sample-drainage.jpg';
-import sampleStreetlight from '@/assets/sample-streetlight.jpg';
+import { useToast } from '@/hooks/use-toast';
 
 const AdminDashboard = () => {
-  const { user } = useApp();
+  const { user, issues, uploadIssuePhoto, markIssueResolved } = useApp();
+  const { toast } = useToast();
+  const [uploadingPhoto, setUploadingPhoto] = useState<number | null>(null);
+  const [resolvingIssue, setResolvingIssue] = useState<number | null>(null);
 
   // Transparency data for administrators
   const transparencyData = {
@@ -76,68 +76,46 @@ const AdminDashboard = () => {
     },
   ];
 
-  const assignedIssues = [
-    {
-      id: 1,
-      title: 'Large pothole on MG Road',
-      description: 'Deep pothole causing traffic congestion near bus stop',
-      location: 'MG Road, Koramangala',
-      priority: 'high',
-      category: 'Roads',
-      reportedBy: 'Arjun Mehta',
-      reportedDate: '2024-01-20',
-      assignedTo: 'Road Maintenance Team',
-      image: samplePothole,
-      status: 'in-progress',
-      upvotes: 15,
-      estimatedTime: '2 days'
-    },
-    {
-      id: 2,
-      title: 'Overflowing garbage bin',
-      description: 'Garbage bin overflowing for 3 days, creating hygiene issues',
-      location: 'Jayanagar 4th Block',
-      priority: 'medium',
-      category: 'Sanitation',
-      reportedBy: 'Priya Sharma',
-      reportedDate: '2024-01-19',
-      assignedTo: 'Sanitation Department',
-      image: sampleGarbage,
-      status: 'assigned',
-      upvotes: 8,
-      estimatedTime: '1 day'
-    },
-    {
-      id: 3,
-      title: 'Blocked drainage causing flooding',
-      description: 'Drainage system completely blocked after recent rains',
-      location: 'BTM Layout 2nd Stage',
-      priority: 'high',
-      category: 'Drainage',
-      reportedBy: 'Rajeev Kumar',
-      reportedDate: '2024-01-18',
-      assignedTo: 'Water Works Department',
-      image: sampleDrainage,
-      status: 'in-progress',
-      upvotes: 22,
-      estimatedTime: '3 days'
-    },
-    {
-      id: 4,
-      title: 'Street light not working',
-      description: 'Multiple street lights not functioning, safety concern',
-      location: 'Indiranagar 12th Main',
-      priority: 'medium',
-      category: 'Street Lighting',
-      reportedBy: 'Meera Iyer',
-      reportedDate: '2024-01-17',
-      assignedTo: 'Electrical Department',
-      image: sampleStreetlight,
-      status: 'assigned',
-      upvotes: 6,
-      estimatedTime: '1 day'
+  const handlePhotoUpload = async (issueId: number, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadingPhoto(issueId);
+    try {
+      await uploadIssuePhoto(issueId, file);
+      toast({
+        title: "Photo uploaded successfully",
+        description: "Progress photo has been attached to the issue."
+      });
+    } catch (error) {
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload photo. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setUploadingPhoto(null);
     }
-  ];
+  };
+
+  const handleMarkResolved = async (issueId: number) => {
+    setResolvingIssue(issueId);
+    try {
+      markIssueResolved(issueId);
+      toast({
+        title: "Issue resolved successfully",
+        description: "The issue has been marked as resolved and moved to public view."
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to resolve",
+        description: "Failed to mark issue as resolved. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setResolvingIssue(null);
+    }
+  };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -293,7 +271,7 @@ const AdminDashboard = () => {
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {assignedIssues.map((issue) => (
+            {issues.map((issue) => (
               <Card key={issue.id} className="card-gradient">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
@@ -318,11 +296,26 @@ const AdminDashboard = () => {
                   </div>
                   
                   <div className="mb-3">
-                    <img 
-                      src={issue.image} 
-                      alt="Issue location"
-                      className="w-full h-32 object-cover rounded-lg"
-                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground">Before</p>
+                        <img 
+                          src={issue.image} 
+                          alt="Before resolution"
+                          className="w-full h-24 object-cover rounded-lg"
+                        />
+                      </div>
+                      {issue.afterImage && (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground">After/Progress</p>
+                          <img 
+                            src={issue.afterImage} 
+                            alt="After/Progress"
+                            className="w-full h-24 object-cover rounded-lg"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="flex items-center justify-between text-xs mb-3">
@@ -340,12 +333,42 @@ const AdminDashboard = () => {
                       <Navigation className="w-3 h-3 mr-1" />
                       Navigate
                     </Button>
-                    <Button variant="outline" size="sm" className="flex-1">
-                      <Camera className="w-3 h-3 mr-1" />
-                      Upload Photo
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      Mark Resolved
+                    <div className="flex-1">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        id={`photo-upload-${issue.id}`}
+                        onChange={(e) => handlePhotoUpload(issue.id, e)}
+                        disabled={uploadingPhoto === issue.id}
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full"
+                        disabled={uploadingPhoto === issue.id}
+                        onClick={() => document.getElementById(`photo-upload-${issue.id}`)?.click()}
+                      >
+                        {uploadingPhoto === issue.id ? (
+                          <Upload className="w-3 h-3 mr-1 animate-spin" />
+                        ) : (
+                          <Camera className="w-3 h-3 mr-1" />
+                        )}
+                        {uploadingPhoto === issue.id ? 'Uploading...' : 'Upload Photo'}
+                      </Button>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      disabled={resolvingIssue === issue.id}
+                      onClick={() => handleMarkResolved(issue.id)}
+                    >
+                      {resolvingIssue === issue.id ? (
+                        <CheckCircle className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                      )}
+                      {resolvingIssue === issue.id ? 'Resolving...' : 'Mark Resolved'}
                     </Button>
                   </div>
                 </CardContent>
