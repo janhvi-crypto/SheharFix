@@ -1,8 +1,6 @@
-
-import React, { useState, useEffect } from 'react';
-import { Camera, MapPin, Mic, Upload, Send, ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,28 +8,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import Layout from '@/components/Layout';
 import LoadingScreen from '@/components/LoadingScreen';
+import { useApp } from '@/contexts/AppContext';
+import { Camera, MapPin, Mic, Upload, ArrowLeft, AlertCircle, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
-import { apiService } from '@/services/api';
 
 const ReportIssue = () => {
+  const { user, uploadIssuePhoto } = useApp();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    category: '',
     location: '',
+    category: '',
     priority: '',
-    anonymous: false
+    images: [] as File[],
+    isAnonymous: false,
+    reportedBy: user?.name || 'Anonymous'
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isRecording, setIsRecording] = useState(false);
-  const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
-  useEffect(() => {
-    setTimeout(() => setIsLoading(false), 2000);
+  React.useEffect(() => {
+    // Simulate initial loading
+    setTimeout(() => setInitialLoading(false), 1500);
   }, []);
 
   const categories = [
@@ -55,56 +56,61 @@ const ReportIssue = () => {
   ];
 
   const validateForm = () => {
-    const newErrors: Record<string, string> = {};
+    const errors: Record<string, string> = {};
 
     if (!formData.title.trim()) {
-      newErrors.title = 'Title is required';
+      errors.title = 'Title is required';
     }
 
     if (!formData.description.trim()) {
-      newErrors.description = 'Description is required';
+      errors.description = 'Description is required';
     }
 
     if (!formData.category) {
-      newErrors.category = 'Category is required';
+      errors.category = 'Category is required';
     }
 
     if (!formData.location.trim()) {
-      newErrors.location = 'Location is required';
+      errors.location = 'Location is required';
     }
 
     if (!formData.priority) {
-      newErrors.priority = 'Priority level is required';
+      errors.priority = 'Priority level is required';
     }
 
-    if (selectedImages.length === 0) {
-      newErrors.images = 'At least one image is required';
+    if (formData.images.length === 0) {
+      errors.images = 'At least one image is required';
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return errors;
   };
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+    // Clear validation error when user starts typing
+    if (validationErrors[field]) {
+      setValidationErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length > 0) {
-      setSelectedImages(prev => [...prev, ...files].slice(0, 5)); // Max 5 images
-      if (errors.images) {
-        setErrors(prev => ({ ...prev, images: '' }));
+      setFormData(prev => ({ 
+        ...prev, 
+        images: [...prev.images, ...files].slice(0, 5) // Max 5 images
+      }));
+      if (validationErrors.images) {
+        setValidationErrors(prev => ({ ...prev, images: '' }));
       }
     }
   };
 
   const removeImage = (index: number) => {
-    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
   };
 
   const startRecording = () => {
@@ -114,7 +120,6 @@ const ReportIssue = () => {
       setIsRecording(false);
       const voiceText = "There is a large pothole on the main road causing traffic issues. It needs immediate attention.";
       setFormData(prev => ({ ...prev, description: voiceText }));
-      toast.success('Voice recording added to description');
     }, 3000);
   };
 
@@ -126,53 +131,63 @@ const ReportIssue = () => {
           // Mock reverse geocoding
           const mockAddress = `${latitude.toFixed(4)}, ${longitude.toFixed(4)} - Koramangala, Bangalore`;
           setFormData(prev => ({ ...prev, location: mockAddress }));
-          toast.success('Location added successfully');
         },
         (error) => {
-          toast.error('Unable to get location. Please enter manually.');
+          console.error('Unable to get location:', error);
         }
       );
-    } else {
-      toast.error('Geolocation is not supported by this browser.');
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!validateForm()) {
-      toast.error('Please fill in all required fields');
+    
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
       return;
     }
 
     setIsSubmitting(true);
-
     try {
-      // Use API service to report issue with ML validation
-      const reportData = {
+      // For now, just upload the first image and create a mock issue
+      // In your backend integration, you'll handle multiple images
+      if (formData.images.length > 0) {
+        await uploadIssuePhoto(Date.now(), formData.images[0]);
+      }
+      
+      // Create a simple success feedback
+      console.log('Issue submitted:', {
         title: formData.title,
         description: formData.description,
         location: formData.location,
         category: formData.category,
         priority: formData.priority,
-        images: selectedImages,
-        isAnonymous: formData.anonymous,
-        reportedBy: 'Current User' // Replace with actual user info
-      };
-
-      await apiService.reportIssue(reportData);
+        isAnonymous: formData.isAnonymous,
+        reportedBy: formData.reportedBy
+      });
       
-      toast.success('Issue reported successfully! You will receive updates via notifications.');
+      // Reset form after successful submission
+      setFormData({
+        title: '',
+        description: '',
+        location: '',
+        category: '',
+        priority: '',
+        images: [],
+        isAnonymous: false,
+        reportedBy: user?.name || 'Anonymous'
+      });
+      
       navigate('/dashboard');
     } catch (error) {
-      toast.error('Failed to submit report. Please try again.');
-      console.error('Error submitting issue:', error);
+      console.error('Failed to submit report:', error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (isLoading) {
+  if (initialLoading) {
     return <LoadingScreen />;
   }
 
@@ -211,10 +226,10 @@ const ReportIssue = () => {
                   placeholder="e.g., Pothole on MG Road"
                   value={formData.title}
                   onChange={(e) => handleInputChange('title', e.target.value)}
-                  className={errors.title ? 'border-destructive' : ''}
+                  className={validationErrors.title ? 'border-destructive' : ''}
                 />
-                {errors.title && (
-                  <p className="text-sm text-destructive">{errors.title}</p>
+                {validationErrors.title && (
+                  <p className="text-sm text-destructive">{validationErrors.title}</p>
                 )}
               </div>
 
@@ -239,10 +254,10 @@ const ReportIssue = () => {
                   placeholder="Describe the issue in detail..."
                   value={formData.description}
                   onChange={(e) => handleInputChange('description', e.target.value)}
-                  className={`min-h-[100px] ${errors.description ? 'border-destructive' : ''}`}
+                  className={`min-h-[100px] ${validationErrors.description ? 'border-destructive' : ''}`}
                 />
-                {errors.description && (
-                  <p className="text-sm text-destructive">{errors.description}</p>
+                {validationErrors.description && (
+                  <p className="text-sm text-destructive">{validationErrors.description}</p>
                 )}
               </div>
 
@@ -254,7 +269,7 @@ const ReportIssue = () => {
                     value={formData.category}
                     onValueChange={(value) => handleInputChange('category', value)}
                   >
-                    <SelectTrigger className={errors.category ? 'border-destructive' : ''}>
+                    <SelectTrigger className={validationErrors.category ? 'border-destructive' : ''}>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
@@ -265,8 +280,8 @@ const ReportIssue = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                  {errors.category && (
-                    <p className="text-sm text-destructive">{errors.category}</p>
+                  {validationErrors.category && (
+                    <p className="text-sm text-destructive">{validationErrors.category}</p>
                   )}
                 </div>
 
@@ -276,7 +291,7 @@ const ReportIssue = () => {
                     value={formData.priority}
                     onValueChange={(value) => handleInputChange('priority', value)}
                   >
-                    <SelectTrigger className={errors.priority ? 'border-destructive' : ''}>
+                    <SelectTrigger className={validationErrors.priority ? 'border-destructive' : ''}>
                       <SelectValue placeholder="Select priority" />
                     </SelectTrigger>
                     <SelectContent>
@@ -287,8 +302,8 @@ const ReportIssue = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                  {errors.priority && (
-                    <p className="text-sm text-destructive">{errors.priority}</p>
+                  {validationErrors.priority && (
+                    <p className="text-sm text-destructive">{validationErrors.priority}</p>
                   )}
                 </div>
               </div>
@@ -313,10 +328,10 @@ const ReportIssue = () => {
                   placeholder="Enter the exact location"
                   value={formData.location}
                   onChange={(e) => handleInputChange('location', e.target.value)}
-                  className={errors.location ? 'border-destructive' : ''}
+                  className={validationErrors.location ? 'border-destructive' : ''}
                 />
-                {errors.location && (
-                  <p className="text-sm text-destructive">{errors.location}</p>
+                {validationErrors.location && (
+                  <p className="text-sm text-destructive">{validationErrors.location}</p>
                 )}
               </div>
 
@@ -344,9 +359,9 @@ const ReportIssue = () => {
                 </div>
 
                 {/* Selected Images Preview */}
-                {selectedImages.length > 0 && (
+                {formData.images.length > 0 && (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-                    {selectedImages.map((file, index) => (
+                    {formData.images.map((file, index) => (
                       <div key={index} className="relative">
                         <img
                           src={URL.createObjectURL(file)}
@@ -367,8 +382,8 @@ const ReportIssue = () => {
                   </div>
                 )}
 
-                {errors.images && (
-                  <p className="text-sm text-destructive">{errors.images}</p>
+                {validationErrors.images && (
+                  <p className="text-sm text-destructive">{validationErrors.images}</p>
                 )}
               </div>
 
@@ -376,8 +391,8 @@ const ReportIssue = () => {
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="anonymous"
-                  checked={formData.anonymous}
-                  onCheckedChange={(checked) => handleInputChange('anonymous', checked as boolean)}
+                  checked={formData.isAnonymous}
+                  onCheckedChange={(checked) => handleInputChange('isAnonymous', checked as boolean)}
                 />
                 <Label htmlFor="anonymous" className="text-sm">
                   Report anonymously (your identity will be hidden)
