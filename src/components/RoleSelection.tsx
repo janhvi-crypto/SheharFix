@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Globe, Sun, Moon, Users, Shield } from 'lucide-react';
+import { Globe, Sun, Moon, Users, Shield, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,7 +8,7 @@ import { useApp, useTranslation, Language } from '@/contexts/AppContext';
 import logo from '@/assets/sheharfix-logo.png';
 
 interface RoleSelectionProps {
-  onContinue: (role: 'citizen' | 'admin', signUp?: boolean) => void;
+  onContinue: (role: 'citizen' | 'admin' | 'department', signUp?: boolean) => void;
 }
 
 const RoleSelection: React.FC<RoleSelectionProps> = ({ onContinue }) => {
@@ -19,8 +18,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onContinue }) => {
 
   const languageOptions = [
     { value: 'en', label: 'English' },
-    { value: 'hi', label: 'हिन्दी' },
-    { value: 'mr', label: 'मराठी' }
+    { value: 'hi', label: 'हिन्दी' }
   ];
 
   return (
@@ -59,7 +57,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onContinue }) => {
 
       {/* Main Content */}
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="w-full max-w-4xl">
+        <div className="w-full max-w-6xl">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center space-x-3 mb-4">
               <img src={logo} alt="SheharFix" className="w-12 h-12" />
@@ -73,7 +71,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onContinue }) => {
             </h2>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-3 gap-6">
             {/* Citizen Card */}
             <Card className="card-gradient hover:shadow-lg transition-all duration-300 hover:scale-105">
               <CardHeader className="text-center">
@@ -165,6 +163,54 @@ const RoleSelection: React.FC<RoleSelectionProps> = ({ onContinue }) => {
                     onClick={() => onContinue('admin', true)}
                   >
                     Create Admin Account
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Department Card */}
+            <Card className="card-gradient hover:shadow-lg transition-all duration-300 hover:scale-105">
+              <CardHeader className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 bg-primary rounded-2xl flex items-center justify-center">
+                  <Building2 className="w-8 h-8 text-primary-foreground" />
+                </div>
+                <CardTitle className="text-2xl">Department</CardTitle>
+                <CardDescription className="text-base">
+                  Handle category-specific issues for your department
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3 text-sm">
+                    <div className="w-2 h-2 bg-primary rounded-full"></div>
+                    <span>Category-specific issues</span>
+                  </div>
+                  <div className="flex items-center space-x-3 text-sm">
+                    <div className="w-2 h-2 bg-primary rounded-full"></div>
+                    <span>Resolve assigned issues</span>
+                  </div>
+                  <div className="flex items-center space-x-3 text-sm">
+                    <div className="w-2 h-2 bg-primary rounded-full"></div>
+                    <span>Upload progress photos</span>
+                  </div>
+                  <div className="flex items-center space-x-3 text-sm">
+                    <div className="w-2 h-2 bg-primary rounded-full"></div>
+                    <span>Track department performance</span>
+                  </div>
+                </div>
+                <div className="mt-6 space-y-3">
+                  <Button 
+                    className="w-full bg-primary hover:bg-primary/90"
+                    onClick={() => onContinue('department')}
+                  >
+                    Continue as Department
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => onContinue('department', true)}
+                  >
+                    Create Department Account
                   </Button>
                 </div>
               </CardContent>
