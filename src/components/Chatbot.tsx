@@ -11,7 +11,7 @@ interface Message {
   type: 'user' | 'bot';
   content: string;
   timestamp: Date;
-  language: 'en' | 'hi';
+  language: 'en';
 }
 
 interface ChatbotProps {
@@ -22,44 +22,26 @@ const Chatbot: React.FC<ChatbotProps> = ({ className = "" }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
-  const [language, setLanguage] = useState<'en' | 'hi'>('en');
+  const [language, setLanguage] = useState<'en'>('en');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Mock responses in both languages
+  // Mock responses
   const responses = {
-    en: {
-      greeting: "Hello! I'm your SheharFix assistant. How can I help you today?",
-      reportIssue: "To report an issue, click on 'Report Issue' in the sidebar. You can upload photos, add location, and describe the problem.",
-      trackIssue: "You can track your reported issues in your dashboard. Each issue has a unique ID and status updates.",
-      emergency: "For emergency situations, please contact your local authorities immediately. This system is for non-emergency civic issues.",
-      help: "I can help you with:\n• Reporting issues\n• Tracking your reports\n• Understanding the resolution process\n• Navigating the app\n\nWhat would you like to know?",
-      default: "I understand you're asking about civic issues. Could you please be more specific? I can help with reporting, tracking, or general information about the SheharFix platform."
-    },
-    hi: {
-      greeting: "नमस्ते! मैं आपका शहरफिक्स सहायक हूं। आज मैं आपकी कैसे मदद कर सकता हूं?",
-      reportIssue: "समस्या रिपोर्ट करने के लिए, साइडबार में 'समस्या रिपोर्ट करें' पर क्लिक करें। आप फोटो अपलोड कर सकते हैं, स्थान जोड़ सकते हैं, और समस्या का वर्णन कर सकते हैं।",
-      trackIssue: "आप अपने डैशबोर्ड में अपनी रिपोर्ट की गई समस्याओं को ट्रैक कर सकते हैं। प्रत्येक समस्या का एक यूनीक आईडी और स्थिति अपडेट होता है।",
-      emergency: "आपातकालीन स्थितियों के लिए, कृपया तुरंत अपने स्थानीय अधिकारियों से संपर्क करें। यह सिस्टम गैर-आपातकालीन नागरिक समस्याओं के लिए है।",
-      help: "मैं आपकी मदद कर सकता हूं:\n• समस्याएं रिपोर्ट करना\n• आपकी रिपोर्ट्स ट्रैक करना\n• समाधान प्रक्रिया समझना\n• ऐप नेविगेट करना\n\nआप क्या जानना चाहेंगे?",
-      default: "मैं समझता हूं कि आप नागरिक समस्याओं के बारे में पूछ रहे हैं। क्या आप कृपया अधिक स्पष्ट हो सकते हैं? मैं रिपोर्टिंग, ट्रैकिंग, या शहरफिक्स प्लेटफॉर्म के बारे में सामान्य जानकारी में मदद कर सकता हूं।"
-    }
+    greeting: "Hello! I'm your SheharFix assistant. How can I help you today?",
+    reportIssue: "To report an issue, click on 'Report Issue' in the sidebar. You can upload photos, add location, and describe the problem.",
+    trackIssue: "You can track your reported issues in your dashboard. Each issue has a unique ID and status updates.",
+    emergency: "For emergency situations, please contact your local authorities immediately. This system is for non-emergency civic issues.",
+    help: "I can help you with:\n• Reporting issues\n• Tracking your reports\n• Understanding the resolution process\n• Navigating the app\n\nWhat would you like to know?",
+    default: "I understand you're asking about civic issues. Could you please be more specific? I can help with reporting, tracking, or general information about the SheharFix platform."
   };
 
-  const quickReplies = {
-    en: [
-      "How to report an issue?",
-      "Track my reports",
-      "Emergency contact",
-      "App help"
-    ],
-    hi: [
-      "समस्या कैसे रिपोर्ट करें?",
-      "मेरी रिपोर्ट्स ट्रैक करें",
-      "आपातकालीन संपर्क",
-      "ऐप सहायता"
-    ]
-  };
+  const quickReplies = [
+    "How to report an issue?",
+    "Track my reports",
+    "Emergency contact",
+    "App help"
+  ];
 
   useEffect(() => {
     if (isOpen && messages.length === 0) {
@@ -67,13 +49,13 @@ const Chatbot: React.FC<ChatbotProps> = ({ className = "" }) => {
       const greeting: Message = {
         id: Date.now().toString(),
         type: 'bot',
-        content: responses[language].greeting,
+        content: responses.greeting,
         timestamp: new Date(),
-        language
+        language: 'en'
       };
       setMessages([greeting]);
     }
-  }, [isOpen, language]);
+  }, [isOpen]);
 
   useEffect(() => {
     scrollToBottom();
@@ -86,16 +68,16 @@ const Chatbot: React.FC<ChatbotProps> = ({ className = "" }) => {
   const getBotResponse = (userMessage: string): string => {
     const msg = userMessage.toLowerCase();
     
-    if (msg.includes('report') || msg.includes('रिपोर्ट')) {
-      return responses[language].reportIssue;
-    } else if (msg.includes('track') || msg.includes('ट्रैक')) {
-      return responses[language].trackIssue;
-    } else if (msg.includes('emergency') || msg.includes('आपातकाल')) {
-      return responses[language].emergency;
-    } else if (msg.includes('help') || msg.includes('मदद') || msg.includes('सहायता')) {
-      return responses[language].help;
+    if (msg.includes('report')) {
+      return responses.reportIssue;
+    } else if (msg.includes('track')) {
+      return responses.trackIssue;
+    } else if (msg.includes('emergency')) {
+      return responses.emergency;
+    } else if (msg.includes('help')) {
+      return responses.help;
     } else {
-      return responses[language].default;
+      return responses.default;
     }
   };
 
@@ -107,7 +89,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ className = "" }) => {
       type: 'user',
       content: inputMessage,
       timestamp: new Date(),
-      language
+      language: 'en'
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -121,7 +103,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ className = "" }) => {
         type: 'bot',
         content: getBotResponse(inputMessage),
         timestamp: new Date(),
-        language
+        language: 'en'
       };
 
       setMessages(prev => [...prev, botResponse]);
@@ -167,25 +149,14 @@ const Chatbot: React.FC<ChatbotProps> = ({ className = "" }) => {
             </div>
           </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <Select value={language} onValueChange={(value: 'en' | 'hi') => setLanguage(value)}>
-            <SelectTrigger className="w-20 h-8">
-              <Languages className="w-3 h-3" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="en">EN</SelectItem>
-              <SelectItem value="hi">हि</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsOpen(false)}
-            className="h-8 w-8"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsOpen(false)}
+          className="h-8 w-8"
+        >
+          <X className="w-4 h-4" />
+        </Button>
       </CardHeader>
 
       <CardContent className="flex-1 p-4 overflow-hidden flex flex-col">
@@ -245,10 +216,10 @@ const Chatbot: React.FC<ChatbotProps> = ({ className = "" }) => {
         {messages.length <= 1 && (
           <div className="mb-4">
             <p className="text-xs text-muted-foreground mb-2">
-              {language === 'en' ? 'Quick replies:' : 'त्वरित उत्तर:'}
+              Quick replies:
             </p>
             <div className="flex flex-wrap gap-1">
-              {quickReplies[language].map((reply, index) => (
+              {quickReplies.map((reply, index) => (
                 <Badge
                   key={index}
                   variant="outline"
@@ -268,7 +239,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ className = "" }) => {
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder={language === 'en' ? 'Type your message...' : 'अपना संदेश टाइप करें...'}
+            placeholder="Type your message..."
             className="flex-1"
           />
           <Button
