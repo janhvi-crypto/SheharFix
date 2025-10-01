@@ -17,7 +17,18 @@ const Index = () => {
     if (!isLoading) {
       if (user) {
         // User is already logged in, redirect to appropriate dashboard
-        navigate(user.role === 'citizen' ? '/dashboard' : '/admin-dashboard');
+        if (user.role === 'citizen') {
+          navigate('/dashboard');
+        } else if (user.role === 'department') {
+          // Check if department category is selected
+          if (!user.departmentCategory) {
+            navigate('/select-department');
+          } else {
+            navigate('/department-dashboard');
+          }
+        } else {
+          navigate('/admin-dashboard');
+        }
       } else {
         setCurrentStep('role-selection');
       }
