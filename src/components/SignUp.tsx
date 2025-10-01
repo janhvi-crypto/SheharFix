@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ArrowLeft, User, Shield, Mail, Phone, Lock, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, User, Shield, Mail, Phone, Lock, Eye, EyeOff, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { useApp, UserRole, useTranslation } from '@/contexts/AppContext';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useApp, UserRole, useTranslation, DepartmentCategory } from '@/contexts/AppContext';
 import { useTheme } from 'next-themes';
 import toast from 'react-hot-toast';
 import logo from '@/assets/sheharfix-logo.png';
@@ -22,7 +23,8 @@ const SignUp: React.FC<SignUpProps> = ({ role, onBack, onSuccess }) => {
     email: '',
     phone: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    departmentCategory: '' as DepartmentCategory
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -87,7 +89,13 @@ const SignUp: React.FC<SignUpProps> = ({ role, onBack, onSuccess }) => {
       });
       
       toast.success(`Welcome to SheharFix! Your ${role} account has been created.`);
-      onSuccess();
+      
+      // Redirect based on role
+      if (role === 'department') {
+        window.location.href = '/select-department';
+      } else {
+        onSuccess();
+      }
     } catch (error) {
       toast.error('Failed to create account. Please try again.');
     } finally {
@@ -141,18 +149,22 @@ const SignUp: React.FC<SignUpProps> = ({ role, onBack, onSuccess }) => {
           <div className="flex items-center justify-center space-x-2">
             {role === 'citizen' ? (
               <User className="w-6 h-6 text-citizen" />
-            ) : (
+            ) : role === 'admin' ? (
               <Shield className="w-6 h-6 text-admin" />
+            ) : (
+              <Building2 className="w-6 h-6 text-primary" />
             )}
             <CardTitle className="text-xl">
-              Create {role === 'citizen' ? 'Citizen' : 'Administrator'} Account
+              Create {role === 'citizen' ? 'Citizen' : role === 'admin' ? 'Administrator' : 'Department'} Account
             </CardTitle>
           </div>
           
           <CardDescription>
             {role === 'citizen' 
               ? 'Join thousands of citizens making their city better'
-              : 'Manage and resolve civic issues efficiently'
+              : role === 'admin'
+              ? 'Manage and resolve civic issues efficiently'
+              : 'Handle category-specific civic issues for your department'
             }
           </CardDescription>
         </CardHeader>
@@ -212,6 +224,7 @@ const SignUp: React.FC<SignUpProps> = ({ role, onBack, onSuccess }) => {
                 <p className="text-sm text-destructive">{errors.phone}</p>
               )}
             </div>
+
 
             {/* Password Field */}
             <div className="space-y-2">
@@ -279,7 +292,7 @@ const SignUp: React.FC<SignUpProps> = ({ role, onBack, onSuccess }) => {
 
             <Button
               type="submit"
-              className={`w-full ${role === 'citizen' ? 'btn-citizen' : 'btn-admin'}`}
+              className={`w-full ${role === 'citizen' ? 'btn-citizen' : role === 'admin' ? 'btn-admin' : 'bg-primary hover:bg-primary/90'}`}
               disabled={isLoading}
             >
               {isLoading ? (
@@ -292,7 +305,7 @@ const SignUp: React.FC<SignUpProps> = ({ role, onBack, onSuccess }) => {
                   <span>Creating Account...</span>
                 </div>
               ) : (
-                `Create ${role === 'citizen' ? 'Citizen' : 'Administrator'} Account`
+                `Create ${role === 'citizen' ? 'Citizen' : role === 'admin' ? 'Administrator' : 'Department'} Account`
               )}
             </Button>
           </form>
